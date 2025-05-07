@@ -32,11 +32,11 @@ export default function Home() {
     if (!documento.trim()) return alert('Informe o número do documento');
     try {
       const res = await fetch(
-        `https://api.maglog.com.br/api-wms/rest/1/event/expedicao?Documento=${documento}`, // ATUALIZAR COM BASE NO TIPO DE API, ESSA URL UTILIZA O NUMERO DO DOCUMENTO = PEDIDO 
+        `https://api.maglog.com.br/api-wms.hom/rest/1/event/expedicao?Documento=${documento}`, // ATUALIZAR COM BASE NO TIPO DE API, ESSA URL UTILIZA O NUMERO DO DOCUMENTO = PEDIDO 
         {
           headers: {
             Tenant: 'F8A63EBF-A4C5-457D-9482-2D6381318B8E', //TENANT FIXO DA MAGLOG
-            Owner:  '48071ECB-56DC-4D7D-BB49-C8DD22C0C908', //OWNER DO CLIENTE, ESSE ATUAL É DA HP
+            Owner:  '0157A619-B0CF-4327-82B2-E4084DBAC7DD', //OWNER DO CLIENTE, ESSE ATUAL É DA HP
           },
         }
       );
