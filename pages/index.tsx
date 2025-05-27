@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
+import { useState } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { supabase } from '../lib/supabaseClient';
@@ -22,34 +21,40 @@ type ItemAPI = {
   lotes: LoteAPI[];
 };
 
-type EstadoRegistro = {
-  item: string;
-  esperada: number;
-  conferida: number;
+// Tipos para o dado vindo da API, pode ajustar se quiser, para pegar as propriedades opcionais e diferentes nomes
+type LoteRaw = {
+  codigo?: string;
+  Codigo?: string;
+  fabricacao?: string;
+  Fabricacao?: string;
+  vencimento?: string;
+  Vencimento?: string;
+  quantidade?: number | string;
+  Quantidade?: number | string;
+};
+
+type ItemRaw = {
+  nrItem?: number;
+  NrItem?: number;
+  codigo?: string;
+  Codigo?: string;
+  valor?: number | string;
+  Valor?: number | string;
+  unidade?: string;
+  Unidade?: string;
+  quantidade?: number | string;
+  Quantidade?: number | string;
+  lotes?: LoteRaw[];
+  Lotes?: LoteRaw[];
 };
 
 export default function Home() {
   const [documento, setDocumento] = useState('');
   const [items, setItems] = useState<ItemAPI[]>([]);
-  const [estado, setEstado] = useState<Record<string, EstadoRegistro>>({});
+  const [estado, setEstado] = useState<
+    Record<string, { item: string; esperada: number; conferida: number }>
+  >({});
   const [bip, setBip] = useState('');
-
-  // Pré-carregar a imagem do logo e converter para base64 para jsPDF
-  const [logoBase64, setLogoBase64] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Função para converter imagem para base64 (async)
-    async function loadLogo() {
-      const res = await fetch('/logo.png');
-      const blob = await res.blob();
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLogoBase64(reader.result as string);
-      };
-      reader.readAsDataURL(blob);
-    }
-    loadLogo();
-  }, []);
 
   const buscarPedido = async () => {
     if (!documento.trim()) return alert('Informe o número do documento');
@@ -64,7 +69,7 @@ export default function Home() {
         }
       );
       const data = await res.json();
-      const apiItens = data.itens;
+      const apiItens: ItemRaw[] = data.itens;
 
       if (!Array.isArray(apiItens) || apiItens.length === 0) {
         alert('Pedido não encontrado ou sem itens.');
@@ -72,26 +77,25 @@ export default function Home() {
         return;
       }
 
-      // Tipando adequadamente, substituindo any
-      const mapped: ItemAPI[] = apiItens.map((i: any) => ({
-        nrItem: i.nrItem ?? i.NrItem,
-        codigo: i.codigo ?? i.Codigo,
-        valor: Number(i.valor ?? i.Valor),
-        unidade: i.unidade ?? i.Unidade,
-        quantidade: Number(i.quantidade ?? i.Quantidade),
+      const mapped: ItemAPI[] = apiItens.map((i: ItemRaw) => ({
+        nrItem: i.nrItem ?? i.NrItem ?? 0,
+        codigo: i.codigo ?? i.Codigo ?? '',
+        valor: Number(i.valor ?? i.Valor ?? 0),
+        unidade: i.unidade ?? i.Unidade ?? '',
+        quantidade: Number(i.quantidade ?? i.Quantidade ?? 0),
         lotes: Array.isArray(i.lotes ?? i.Lotes)
-          ? (i.lotes ?? i.Lotes).map((l: any) => ({
-              Codigo: l.codigo ?? l.Codigo,
-              Fabricacao: l.fabricacao ?? l.Fabricacao,
-              Vencimento: l.vencimento ?? l.Vencimento,
-              Quantidade: Number(l.quantidade ?? l.Quantidade),
+          ? (i.lotes ?? i.Lotes)!.map((l: LoteRaw) => ({
+              Codigo: l.codigo ?? l.Codigo ?? '',
+              Fabricacao: l.fabricacao ?? l.Fabricacao ?? '',
+              Vencimento: l.vencimento ?? l.Vencimento ?? '',
+              Quantidade: Number(l.quantidade ?? l.Quantidade ?? 0),
             }))
           : [],
       }));
 
       setItems(mapped);
 
-      const init: Record<string, EstadoRegistro> = {};
+      const init: Record<string, { item: string; esperada: number; conferida: number }> = {};
       let idx = 0;
       mapped.forEach(i => {
         if (i.lotes.length > 0) {
@@ -114,6 +118,8 @@ export default function Home() {
       alert('Erro na requisição da API.');
     }
   };
+
+  // ... restante do código permanece igual ...
 
   const processarBip = async (entrada: string) => {
     const chave = entrada.trim();
@@ -149,7 +155,10 @@ export default function Home() {
   };
 
   const finalizarConferencia = () => {
-    const todosConferidos = Object.values(estado).every(reg => reg.conferida >= reg.esperada);
+    const todosConferidos = Object.values(estado).every(
+      reg => reg.conferida >= reg.esperada
+    );
+
     if (!todosConferidos) {
       alert('Ainda existem itens pendentes de conferência.');
       return;
@@ -161,54 +170,56 @@ export default function Home() {
       format: [100, 150],
     });
 
-    if (logoBase64) {
-      doc.addImage(logoBase64, 'PNG', 10, 10, 25, 10);
-    }
+    const img = new Image();
+    img.src = '/logo.png';
 
-    doc.setFontSize(12);
-    doc.text(`Conferência Documento: ${documento}`, 10, 30);
+    img.onload = () => {
+      doc.addImage(img, 'PNG', 10, 10, 25, 10);
+      doc.setFontSize(12);
+      doc.text(`Conferência Documento: ${documento}`, 10, 30);
 
-    const agrupado: Record<string, { item: string; lote: string; esperada: number; conferida: number }> = {};
-    Object.entries(estado).forEach(([key, reg]) => {
-      const lote = key.split('-')[0];
-      const id = `${reg.item}-${lote}`;
-      if (!agrupado[id]) {
-        agrupado[id] = { item: reg.item, lote, esperada: 0, conferida: 0 };
-      }
-      agrupado[id].esperada += reg.esperada;
-      agrupado[id].conferida += reg.conferida;
-    });
+      const agrupado: Record<string, { item: string; lote: string; esperada: number; conferida: number }> = {};
+      Object.entries(estado).forEach(([key, reg]) => {
+        const lote = key.split('-')[0];
+        const id = `${reg.item}-${lote}`;
+        if (!agrupado[id]) {
+          agrupado[id] = { item: reg.item, lote, esperada: 0, conferida: 0 };
+        }
+        agrupado[id].esperada += reg.esperada;
+        agrupado[id].conferida += reg.conferida;
+      });
 
-    const body: string[][] = Object.values(agrupado).map(reg => [
-      reg.item,
-      reg.lote,
-      reg.esperada.toString(),
-    ]);
+      const body: string[][] = Object.values(agrupado).map(reg => [
+        reg.item,
+        reg.lote,
+        reg.esperada.toString(),
+      ]);
 
-    autoTable(doc, {
-      head: [['Código', 'Lote', 'Quantidade']],
-      body,
-      startY: 32,
-      headStyles: {
-        fillColor: [52, 152, 219],
-        textColor: 255,
-        fontStyle: 'bold',
-      },
-      bodyStyles: {
-        fillColor: [250, 250, 250],
-        textColor: [50, 50, 50],
-      },
-      alternateRowStyles: {
-        fillColor: [240, 240, 240],
-      },
-      styles: {
-        fontSize: 10,
-        halign: 'center',
-      },
-    });
+      autoTable(doc, {
+        head: [['Código', 'Lote', 'Quantidade']],
+        body,
+        startY: 32,
+        headStyles: {
+          fillColor: [52, 152, 219],
+          textColor: 255,
+          fontStyle: 'bold',
+        },
+        bodyStyles: {
+          fillColor: [250, 250, 250],
+          textColor: [50, 50, 50],
+        },
+        alternateRowStyles: {
+          fillColor: [240, 240, 240],
+        },
+        styles: {
+          fontSize: 10,
+          halign: 'center',
+        },
+      });
 
-    doc.save(`conferencia_${documento}.pdf`);
-    alert('Conferência realizada com sucesso!');
+      doc.save(`conferencia_${documento}.pdf`);
+      alert('Conferência realizada com sucesso!');
+    };
   };
 
   const agrupado = Object.values(
@@ -228,18 +239,17 @@ export default function Home() {
 
   return (
     <main className="container">
-      {/* Usando Next.js Image para otimização */}
-      <div style={{ width: 150, margin: '0 auto 1.5rem', display: 'block' }}>
-        <Image
-          src="/logo.png"
-          alt="Logo da Empresa"
-          width={150}
-          height={50}
-          priority
-          style={{ display: 'block' }}
-        />
-      </div>
-
+      <img
+        src="/logo.png"
+        alt="Logo da Empresa"
+        style={{
+          width: '150px',
+          marginBottom: '1.5rem',
+          display: 'block',
+          marginLeft: 'auto',
+          marginRight: 'auto',
+        }}
+      />
       <h1>Conferência de Pedidos</h1>
 
       <div className="form">
@@ -247,8 +257,6 @@ export default function Home() {
           value={documento}
           onChange={e => setDocumento(e.target.value)}
           placeholder="Número do Documento"
-          type="text"
-          aria-label="Número do Documento"
         />
         <button onClick={buscarPedido}>Buscar</button>
       </div>
@@ -261,8 +269,6 @@ export default function Home() {
               value={bip}
               onChange={e => setBip(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && processarBip(bip)}
-              type="text"
-              aria-label="Bipe código ou lote"
             />
           </div>
 
