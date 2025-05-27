@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { supabase } from '../lib/supabaseClient';
@@ -21,13 +22,34 @@ type ItemAPI = {
   lotes: LoteAPI[];
 };
 
+type EstadoRegistro = {
+  item: string;
+  esperada: number;
+  conferida: number;
+};
+
 export default function Home() {
   const [documento, setDocumento] = useState('');
   const [items, setItems] = useState<ItemAPI[]>([]);
-  const [estado, setEstado] = useState<
-    Record<string, { item: string; esperada: number; conferida: number }>
-  >({});
+  const [estado, setEstado] = useState<Record<string, EstadoRegistro>>({});
   const [bip, setBip] = useState('');
+
+  // Pré-carregar a imagem do logo e converter para base64 para jsPDF
+  const [logoBase64, setLogoBase64] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Função para converter imagem para base64 (async)
+    async function loadLogo() {
+      const res = await fetch('/logo.png');
+      const blob = await res.blob();
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoBase64(reader.result as string);
+      };
+      reader.readAsDataURL(blob);
+    }
+    loadLogo();
+  }, []);
 
   const buscarPedido = async () => {
     if (!documento.trim()) return alert('Informe o número do documento');
@@ -37,7 +59,7 @@ export default function Home() {
         {
           headers: {
             Tenant: 'F8A63EBF-A4C5-457D-9482-2D6381318B8E',
-            Owner: '48071ECB-56DC-4D7D-BB49-C8DD22C0C908', // endress (0157A619-B0CF-4327-82B2-E4084DBAC7DD)
+            Owner: '48071ECB-56DC-4D7D-BB49-C8DD22C0C908',
           },
         }
       );
@@ -50,6 +72,7 @@ export default function Home() {
         return;
       }
 
+      // Tipando adequadamente, substituindo any
       const mapped: ItemAPI[] = apiItens.map((i: any) => ({
         nrItem: i.nrItem ?? i.NrItem,
         codigo: i.codigo ?? i.Codigo,
@@ -68,7 +91,7 @@ export default function Home() {
 
       setItems(mapped);
 
-      const init: Record<string, { item: string; esperada: number; conferida: number }> = {};
+      const init: Record<string, EstadoRegistro> = {};
       let idx = 0;
       mapped.forEach(i => {
         if (i.lotes.length > 0) {
@@ -125,27 +148,23 @@ export default function Home() {
     });
   };
 
-const finalizarConferencia = () => {
-  const todosConferidos = Object.values(estado).every(
-    reg => reg.conferida >= reg.esperada
-  );
+  const finalizarConferencia = () => {
+    const todosConferidos = Object.values(estado).every(reg => reg.conferida >= reg.esperada);
+    if (!todosConferidos) {
+      alert('Ainda existem itens pendentes de conferência.');
+      return;
+    }
 
-  if (!todosConferidos) {
-    alert('Ainda existem itens pendentes de conferência.');
-    return;
-  }
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: [100, 150],
+    });
 
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: [100, 150],
-  });
+    if (logoBase64) {
+      doc.addImage(logoBase64, 'PNG', 10, 10, 25, 10);
+    }
 
-  const img = new Image();
-  img.src = '/logo.png';
-
-  img.onload = () => {
-    doc.addImage(img, 'PNG', 10, 10, 25, 10);
     doc.setFontSize(12);
     doc.text(`Conferência Documento: ${documento}`, 10, 30);
 
@@ -191,8 +210,6 @@ const finalizarConferencia = () => {
     doc.save(`conferencia_${documento}.pdf`);
     alert('Conferência realizada com sucesso!');
   };
-};
-
 
   const agrupado = Object.values(
     Object.entries(estado).reduce((acc, [key, reg]) => {
@@ -211,7 +228,18 @@ const finalizarConferencia = () => {
 
   return (
     <main className="container">
-      <img src="/logo.png" alt="Logo da Empresa" style={{ width: '150px', marginBottom: '1.5rem', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />
+      {/* Usando Next.js Image para otimização */}
+      <div style={{ width: 150, margin: '0 auto 1.5rem', display: 'block' }}>
+        <Image
+          src="/logo.png"
+          alt="Logo da Empresa"
+          width={150}
+          height={50}
+          priority
+          style={{ display: 'block' }}
+        />
+      </div>
+
       <h1>Conferência de Pedidos</h1>
 
       <div className="form">
@@ -219,6 +247,8 @@ const finalizarConferencia = () => {
           value={documento}
           onChange={e => setDocumento(e.target.value)}
           placeholder="Número do Documento"
+          type="text"
+          aria-label="Número do Documento"
         />
         <button onClick={buscarPedido}>Buscar</button>
       </div>
@@ -231,6 +261,8 @@ const finalizarConferencia = () => {
               value={bip}
               onChange={e => setBip(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && processarBip(bip)}
+              type="text"
+              aria-label="Bipe código ou lote"
             />
           </div>
 
