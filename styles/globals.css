@@ -1,53 +1,106 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f5f7fa;
+  --text: #333;
+  --primary: #008080;
+  --success: #2ecc71;
+  --warning: #f1c40f;
+  --border-radius: 8px;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #ffffff;
-    --foreground: #000000;
-  }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 html,
 body {
-  max-width: 100vw;
-  overflow-x: hidden;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-main);
+  font-size: 16px;
+  line-height: 1.6;
+  height: 100%;
+  width: 100%;
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  align-items: center;
-  display: flex;
-  justify-content: center;
-  flex-direction: column;
-  min-height: 100vh;
-  padding: 0 1rem;
-  margin: 0;
-  font-size: 1.2rem;
-  line-height: 1.5;
-  font-weight: 400;
+main.container {
+  max-width: 900px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background: #fff;
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+}
+
+h1 {
   text-align: center;
+  font-size: 2rem;
+  margin-bottom: 2rem;
+  color: var(--primary);
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  justify-content: center;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+input {
+  padding: 0.6rem 1rem;
+  border: 1px solid #ccc;
+  border-radius: var(--border-radius);
+  flex: 1;
+  max-width: 300px;
+  font-size: 1rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+button {
+  padding: 0.6rem 1.2rem;
+  background-color: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 1rem;
+}
+
+button:hover {
+  background-color: #008080;
+}
+
+button:disabled {
+  background-color: #bbb;
+  cursor: not-allowed;
+}
+
+table.styled-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1.5rem;
+}
+
+table.styled-table th,
+table.styled-table td {
+  padding: 12px 15px;
+  text-align: center;
+  border-bottom: 1px solid #ccc;
+}
+
+table.styled-table tr.ok {
+  background-color: #e8f5e9; /* Verde claro para conferido */
+}
+
+table.styled-table tr.pendente {
+  background-color: #fff8dc; /* Amarelo claro para pendente */
+}
+
+.btn-finalizar {
+  display: block;
+  margin: 2rem auto 0;
 }

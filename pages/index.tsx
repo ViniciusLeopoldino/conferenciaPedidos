@@ -1,3 +1,5 @@
+'use client';
+
 import { useState } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -31,11 +33,11 @@ export default function Home() {
     if (!documento.trim()) return alert('Informe o número do documento');
     try {
       const res = await fetch(
-        `https://api.maglog.com.br/api-wms.hom/rest/1/event/expedicao?Documento=${documento}`,
+        `https://api.maglog.com.br/api-wms/rest/1/event/expedicao?Documento=${documento}`,
         {
           headers: {
             Tenant: 'F8A63EBF-A4C5-457D-9482-2D6381318B8E',
-            Owner: '0157A619-B0CF-4327-82B2-E4084DBAC7DD',
+            Owner: '48071ECB-56DC-4D7D-BB49-C8DD22C0C908', // endress (0157A619-B0CF-4327-82B2-E4084DBAC7DD)
           },
         }
       );
@@ -63,6 +65,7 @@ export default function Home() {
             }))
           : [],
       }));
+
       setItems(mapped);
 
       const init: Record<string, { item: string; esperada: number; conferida: number }> = {};
@@ -122,18 +125,29 @@ export default function Home() {
     });
   };
 
+const finalizarConferencia = () => {
   const todosConferidos = Object.values(estado).every(
     reg => reg.conferida >= reg.esperada
   );
 
-  const finalizarConferencia = () => {
-    if (!todosConferidos) {
-      alert('Ainda existem itens pendentes de conferência.');
-      return;
-    }
+  if (!todosConferidos) {
+    alert('Ainda existem itens pendentes de conferência.');
+    return;
+  }
 
-    const doc = new jsPDF();
-    doc.text(`Conferência Documento: ${documento}`, 10, 10);
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: [100, 150],
+  });
+
+  const img = new Image();
+  img.src = '/logo.png';
+
+  img.onload = () => {
+    doc.addImage(img, 'PNG', 10, 10, 25, 10);
+    doc.setFontSize(12);
+    doc.text(`Conferência Documento: ${documento}`, 10, 30);
 
     const agrupado: Record<string, { item: string; lote: string; esperada: number; conferida: number }> = {};
     Object.entries(estado).forEach(([key, reg]) => {
@@ -155,18 +169,18 @@ export default function Home() {
     autoTable(doc, {
       head: [['Código', 'Lote', 'Quantidade']],
       body,
-      startY: 20,
+      startY: 32,
       headStyles: {
-        fillColor: [22, 160, 133],
+        fillColor: [52, 152, 219],
         textColor: 255,
         fontStyle: 'bold',
       },
       bodyStyles: {
-        fillColor: [245, 245, 245],
+        fillColor: [250, 250, 250],
         textColor: [50, 50, 50],
       },
       alternateRowStyles: {
-        fillColor: [255, 255, 255],
+        fillColor: [240, 240, 240],
       },
       styles: {
         fontSize: 10,
@@ -177,58 +191,63 @@ export default function Home() {
     doc.save(`conferencia_${documento}.pdf`);
     alert('Conferência realizada com sucesso!');
   };
+};
+
+
+  const agrupado = Object.values(
+    Object.entries(estado).reduce((acc, [key, reg]) => {
+      const lote = key.split('-')[0];
+      const id = `${reg.item}-${lote}`;
+      if (!acc[id]) {
+        acc[id] = { item: reg.item, lote, esperada: 0, conferida: 0 };
+      }
+      acc[id].esperada += reg.esperada;
+      acc[id].conferida += reg.conferida;
+      return acc;
+    }, {} as Record<string, { item: string; lote: string; esperada: number; conferida: number }>)
+  );
+
+  const todosConferidos = agrupado.every(reg => reg.conferida >= reg.esperada);
 
   return (
-    <main style={{ padding: 20, fontFamily: 'sans-serif' }}>
+    <main className="container">
+      <img src="/logo.png" alt="Logo da Empresa" style={{ width: '150px', marginBottom: '1.5rem', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />
       <h1>Conferência de Pedidos</h1>
 
-      <div style={{ marginBottom: 16 }}>
+      <div className="form">
         <input
           value={documento}
           onChange={e => setDocumento(e.target.value)}
           placeholder="Número do Documento"
-          style={{ marginRight: 8 }}
         />
-        <button onClick={buscarPedido}>Buscar Pedido</button>
+        <button onClick={buscarPedido}>Buscar</button>
       </div>
 
       {items.length > 0 && (
         <>
-          <div style={{ marginBottom: 20 }}>
+          <div className="form">
             <input
               placeholder="Bipe código ou lote"
               value={bip}
               onChange={e => setBip(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && processarBip(bip)}
-              style={{ width: 300 }}
             />
           </div>
 
-          <table border={1} cellPadding={6} style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table className="styled-table">
             <thead>
               <tr>
                 <th>Código</th>
                 <th>Lote</th>
-                <th>Quantidade</th>
-                <th>Conferido</th>
+                <th>Esperada</th>
+                <th>Conferida</th>
               </tr>
             </thead>
             <tbody>
-              {Object.values(
-                Object.entries(estado).reduce((acc, [key, reg]) => {
-                  const lote = key.split('-')[0];
-                  const id = `${reg.item}-${lote}`;
-                  if (!acc[id]) {
-                    acc[id] = { item: reg.item, lote, esperada: 0, conferida: 0 };
-                  }
-                  acc[id].esperada += reg.esperada;
-                  acc[id].conferida += reg.conferida;
-                  return acc;
-                }, {} as Record<string, { item: string; lote: string; esperada: number; conferida: number }>)
-              ).map((reg, idx) => (
+              {agrupado.map((reg, idx) => (
                 <tr
                   key={idx}
-                  style={{ backgroundColor: reg.conferida >= reg.esperada ? '#d4edda' : '#fff3cd' }}
+                  className={reg.conferida >= reg.esperada ? 'ok' : 'pendente'}
                 >
                   <td>{reg.item}</td>
                   <td>{reg.lote}</td>
@@ -240,9 +259,9 @@ export default function Home() {
           </table>
 
           <button
+            className="btn-finalizar"
             onClick={finalizarConferencia}
             disabled={!todosConferidos}
-            style={{ marginTop: 20 }}
           >
             Finalizar Conferência
           </button>
