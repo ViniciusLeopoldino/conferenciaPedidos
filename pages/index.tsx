@@ -21,7 +21,6 @@ type ItemAPI = {
   lotes: LoteAPI[];
 };
 
-// Tipos para o dado vindo da API, pode ajustar se quiser, para pegar as propriedades opcionais e diferentes nomes
 type LoteRaw = {
   codigo?: string;
   Codigo?: string;
@@ -56,15 +55,23 @@ export default function Home() {
   >({});
   const [bip, setBip] = useState('');
 
+  const tocarErro = () => {
+    (document.getElementById('erro-audio') as HTMLAudioElement | null)?.play();
+  };
+
   const buscarPedido = async () => {
-    if (!documento.trim()) return alert('Informe o número do documento');
+    if (!documento.trim()) {
+      alert('Informe o número do documento');
+      tocarErro();
+      return;
+    }
     try {
       const res = await fetch(
         `https://api.maglog.com.br/api-wms/rest/1/event/expedicao?Documento=${documento}`,
         {
           headers: {
-            Tenant: 'F8A63EBF-A4C5-457D-9482-2D6381318B8E', //TENANT FIXO DA MAGLOG
-            Owner: '0157A619-B0CF-4327-82B2-E4084DBAC7DD', //OWNER DO CLIENTE, ESSE ATUAL É DA ENDRESS (0157A619-B0CF-4327-82B2-E4084DBAC7DD)
+            Tenant: 'F8A63EBF-A4C5-457D-9482-2D6381318B8E',
+            Owner: '0157A619-B0CF-4327-82B2-E4084DBAC7DD',
           },
         }
       );
@@ -73,6 +80,7 @@ export default function Home() {
 
       if (!Array.isArray(apiItens) || apiItens.length === 0) {
         alert('Pedido não encontrado ou sem itens.');
+        tocarErro();
         setItems([]);
         return;
       }
@@ -116,30 +124,39 @@ export default function Home() {
     } catch (err) {
       console.error('Erro ao buscar pedido:', err);
       alert('Erro na requisição da API.');
+      tocarErro();
     }
   };
 
-  // ... restante do código permanece igual ...
+const processarBip = async (entrada: string) => {
+  const chave = entrada.trim();
+  if (!chave) return;
 
-  const processarBip = async (entrada: string) => {
-    const chave = entrada.trim();
-    if (!chave) return;
+  const chavesPossiveis = Object.keys(estado).filter(k => k.split('-')[0] === chave);
+  const chaveLivre = chavesPossiveis.find(k => estado[k].conferida < estado[k].esperada);
 
-    const chavesPossiveis = Object.keys(estado).filter(k => k.startsWith(chave));
-    const chaveLivre = chavesPossiveis.find(k => estado[k].conferida < estado[k].esperada);
+  if (chaveLivre) {
+    await atualizarConferencia(chaveLivre);
+  } else {
+    alert('Todos os registros desse código/lote já foram conferidos.');
+    tocarErro();
+  }
+  setBip('');
+};
 
-    if (chaveLivre) {
-      await atualizarConferencia(chaveLivre);
-    } else {
-      alert('Todos os registros desse código/lote já foram conferidos.');
-    }
-    setBip('');
-  };
 
   const atualizarConferencia = async (chave: string) => {
     const reg = estado[chave];
-    if (!reg) return alert('Chave inválida.');
-    if (reg.conferida >= reg.esperada) return alert('Quantidade já conferida.');
+    if (!reg) {
+      alert('Chave inválida.');
+      tocarErro();
+      return;
+    }
+    if (reg.conferida >= reg.esperada) {
+      alert('Quantidade já conferida.');
+      tocarErro();
+      return;
+    }
 
     const novo = { ...reg, conferida: reg.conferida + 1 };
     setEstado(prev => ({ ...prev, [chave]: novo }));
@@ -161,6 +178,7 @@ export default function Home() {
 
     if (!todosConferidos) {
       alert('Ainda existem itens pendentes de conferência.');
+      tocarErro();
       return;
     }
 
@@ -232,13 +250,15 @@ export default function Home() {
       acc[id].esperada += reg.esperada;
       acc[id].conferida += reg.conferida;
       return acc;
-    }, {} as Record<string, { item: string; lote: string; esperada: number; conferida: number }>)
+    }, {} as Record<string, { item: string; lote: string; esperada: number; conferida: number }>),
   );
 
   const todosConferidos = agrupado.every(reg => reg.conferida >= reg.esperada);
 
   return (
     <main className="container">
+      <audio id="erro-audio" src="/erro.mp3" preload="auto"></audio>
+
       <img
         src="/logo.png"
         alt="Logo da Empresa"
