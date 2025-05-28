@@ -93,11 +93,11 @@ table.styled-table td {
 }
 
 table.styled-table tr.ok {
-  background-color: #e8f5e9; /* Verde claro para conferido */
+  background-color: #00ff15; /* Verde claro para conferido */
 }
 
 table.styled-table tr.pendente {
-  background-color: #fff8dc; /* Amarelo claro para pendente */
+  background-color: #ffcc00; /* Amarelo claro para pendente */
 }
 
 .btn-finalizar {

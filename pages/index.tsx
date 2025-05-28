@@ -63,8 +63,8 @@ export default function Home() {
         `https://api.maglog.com.br/api-wms/rest/1/event/expedicao?Documento=${documento}`,
         {
           headers: {
-            Tenant: 'F8A63EBF-A4C5-457D-9482-2D6381318B8E',
-            Owner: '48071ECB-56DC-4D7D-BB49-C8DD22C0C908',
+            Tenant: 'F8A63EBF-A4C5-457D-9482-2D6381318B8E', //TENANT FIXO DA MAGLOG
+            Owner: '0157A619-B0CF-4327-82B2-E4084DBAC7DD', //OWNER DO CLIENTE, ESSE ATUAL É DA ENDRESS (0157A619-B0CF-4327-82B2-E4084DBAC7DD)
           },
         }
       );
