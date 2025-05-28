@@ -1,7 +1,7 @@
 :root {
   --bg: #f5f7fa;
-  --text: #333;
-  --primary: #008080;
+  /* --text: #333; */
+  /* --primary: #000000; */
   --success: #2ecc71;
   --warning: #f1c40f;
   --border-radius: 8px;
@@ -52,7 +52,7 @@ h1 {
 
 input {
   padding: 0.6rem 1rem;
-  border: 1px solid #ccc;
+  border: 1px solid #000000;
   border-radius: var(--border-radius);
   flex: 1;
   max-width: 300px;
@@ -61,8 +61,8 @@ input {
 
 button {
   padding: 0.6rem 1.2rem;
-  background-color: var(--primary);
-  color: white;
+  background-color: #008080;
+  color: #ffffff;
   border: none;
   border-radius: var(--border-radius);
   cursor: pointer;
