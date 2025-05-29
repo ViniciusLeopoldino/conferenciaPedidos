@@ -171,67 +171,63 @@ export default function Home() {
     });
   };
 
-  const finalizarConferencia = () => {
-    const todosConferidos = Object.values(estado).every(reg => reg.conferida >= reg.esperada);
+const finalizarConferencia = () => {
+  const todosConferidos = Object.values(estado).every(reg => reg.conferida >= reg.esperada);
 
-    if (!todosConferidos) {
-      alert('Ainda existem itens pendentes de conferência.');
-      tocarErro();
-      return;
+  if (!todosConferidos) {
+    alert('Ainda existem itens pendentes de conferência.');
+    tocarErro();
+    return;
+  }
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [100, 150] });
+
+  // Apenas texto no topo, sem imagem
+  doc.setFontSize(12);
+  doc.text(`Conferência Documento: ${documento}`, 10, 10);
+
+  const agrupado: Record<string, { item: string; lote: string; esperada: number; conferida: number }> = {};
+  Object.entries(estado).forEach(([_, reg]) => {
+    const id = `${reg.item}-${reg.lote}`;
+    if (!agrupado[id]) {
+      agrupado[id] = { item: reg.item, lote: reg.lote, esperada: 0, conferida: 0 };
     }
+    agrupado[id].esperada += reg.esperada;
+    agrupado[id].conferida += reg.conferida;
+  });
 
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [100, 150] });
+  const body: string[][] = Object.values(agrupado).map(reg => [
+    reg.item,
+    reg.lote,
+    reg.esperada.toString(),
+  ]);
 
-    const img = new Image();
-    img.src = '/logo.png';
+  autoTable(doc, {
+    head: [['Código', 'Lote', 'Quantidade']],
+    body,
+    startY: 15,
+    headStyles: {
+      fillColor: [52, 152, 219],
+      textColor: 255,
+      fontStyle: 'bold',
+    },
+    bodyStyles: {
+      fillColor: [250, 250, 250],
+      textColor: [50, 50, 50],
+    },
+    alternateRowStyles: {
+      fillColor: [240, 240, 240],
+    },
+    styles: {
+      fontSize: 10,
+      halign: 'center',
+    },
+  });
 
-    img.onload = () => {
-      doc.addImage(img, 'PNG', 10, 10, 25, 10);
-      doc.setFontSize(12);
-      doc.text(`Conferência Documento: ${documento}`, 10, 30);
+  doc.save(`conferencia_${documento}.pdf`);
+  alert('Conferência realizada com sucesso!');
+};
 
-      const agrupado: Record<string, { item: string; lote: string; esperada: number; conferida: number }> = {};
-      Object.entries(estado).forEach(([_, reg]) => {
-        const id = `${reg.item}-${reg.lote}`;
-        if (!agrupado[id]) {
-          agrupado[id] = { item: reg.item, lote: reg.lote, esperada: 0, conferida: 0 };
-        }
-        agrupado[id].esperada += reg.esperada;
-        agrupado[id].conferida += reg.conferida;
-      });
-
-      const body: string[][] = Object.values(agrupado).map(reg => [
-        reg.item,
-        reg.lote,
-        reg.esperada.toString(),
-      ]);
-
-      autoTable(doc, {
-        head: [['Código', 'Lote', 'Quantidade']],
-        body,
-        startY: 32,
-        headStyles: {
-          fillColor: [52, 152, 219],
-          textColor: 255,
-          fontStyle: 'bold',
-        },
-        bodyStyles: {
-          fillColor: [250, 250, 250],
-          textColor: [50, 50, 50],
-        },
-        alternateRowStyles: {
-          fillColor: [240, 240, 240],
-        },
-        styles: {
-          fontSize: 10,
-          halign: 'center',
-        },
-      });
-
-      doc.save(`conferencia_${documento}.pdf`);
-      alert('Conferência realizada com sucesso!');
-    };
-  };
 
   const agrupado = Object.values(
     Object.entries(estado).reduce((acc, [_, reg]) => {
