@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { supabase } from '../lib/supabaseClient';
+import Image from 'next/image';
 
 type LoteAPI = {
   Codigo: string;
@@ -47,10 +48,14 @@ type ItemRaw = {
   Lotes?: LoteRaw[];
 };
 
+// ... (mantém todas as importações)
+
 export default function Home() {
   const [documento, setDocumento] = useState('');
   const [items, setItems] = useState<ItemAPI[]>([]);
-  const [estado, setEstado] = useState<Record<string, { item: string; lote: string; esperada: number; conferida: number }>>({});
+  const [estado, setEstado] = useState<
+    Record<string, { item: string; esperada: number; conferida: number; lote: string }>
+  >({});
   const [bip, setBip] = useState('');
 
   const tocarErro = () => {
@@ -63,15 +68,16 @@ export default function Home() {
       tocarErro();
       return;
     }
-
     try {
-      const res = await fetch(`https://api.maglog.com.br/api-wms/rest/1/event/expedicao?Documento=${documento}`, {
-        headers: {
-          Tenant: 'F8A63EBF-A4C5-457D-9482-2D6381318B8E',
-          Owner: '0157A619-B0CF-4327-82B2-E4084DBAC7DD',
-        },
-      });
-
+      const res = await fetch(
+        `https://api.maglog.com.br/api-wms/rest/1/event/expedicao?Documento=${documento}`,
+        {
+          headers: {
+            Tenant: 'F8A63EBF-A4C5-457D-9482-2D6381318B8E',
+            Owner: '0157A619-B0CF-4327-82B2-E4084DBAC7DD',
+          },
+        }
+      );
       const data = await res.json();
       const apiItens: ItemRaw[] = data.itens;
 
@@ -90,7 +96,7 @@ export default function Home() {
         quantidade: Number(i.quantidade ?? i.Quantidade ?? 0),
         lotes: Array.isArray(i.lotes ?? i.Lotes)
           ? (i.lotes ?? i.Lotes)!.map((l: LoteRaw) => ({
-              Codigo: l.codigo ?? l.Codigo ?? '',
+              Codigo: String(l.codigo ?? l.Codigo ?? ''),
               Fabricacao: l.fabricacao ?? l.Fabricacao ?? '',
               Vencimento: l.vencimento ?? l.Vencimento ?? '',
               Quantidade: Number(l.quantidade ?? l.Quantidade ?? 0),
@@ -100,25 +106,23 @@ export default function Home() {
 
       setItems(mapped);
 
-      const init: Record<string, { item: string; lote: string; esperada: number; conferida: number }> = {};
+      const init: Record<string, { item: string; esperada: number; conferida: number; lote: string }> = {};
       let idx = 0;
-
       mapped.forEach(i => {
         if (i.lotes.length > 0) {
           i.lotes.forEach(l => {
             for (let q = 0; q < l.Quantidade; q++) {
-              const key = `${i.codigo}-${l.Codigo}-${idx++}`;
+              const key = `${l.Codigo}-${idx++}`;
               init[key] = { item: i.codigo, lote: l.Codigo, esperada: 1, conferida: 0 };
             }
           });
         } else {
           for (let q = 0; q < i.quantidade; q++) {
-            const key = `${i.codigo}-SEMLOTE-${idx++}`;
-            init[key] = { item: i.codigo, lote: 'SEMLOTE', esperada: 1, conferida: 0 };
+            const key = `${i.codigo}-${idx++}`;
+            init[key] = { item: i.codigo, lote: i.codigo, esperada: 1, conferida: 0 };
           }
         }
       });
-
       setEstado(init);
     } catch (err) {
       console.error('Erro ao buscar pedido:', err);
@@ -128,21 +132,23 @@ export default function Home() {
   };
 
   const processarBip = async (entrada: string) => {
-    const chave = entrada.trim();
-    if (!chave) return;
+  const chaveDigitada = entrada.trim();
+  if (!chaveDigitada) return;
 
-    const chavesPossiveis = Object.entries(estado).filter(([_, v]) => v.lote === chave || v.item === chave);
-    const chaveLivre = chavesPossiveis.find(([_, reg]) => reg.conferida < reg.esperada)?.[0];
+  // Encontra uma chave no estado onde o lote é exatamente igual à entrada e ainda não foi totalmente conferido
+  const chaveLivre = Object.entries(estado).find(
+    ([, reg]) => reg.lote === chaveDigitada && reg.conferida < reg.esperada
+  )?.[0];
 
-    if (chaveLivre) {
-      await atualizarConferencia(chaveLivre);
-    } else {
-      alert('Todos os registros desse código/lote já foram conferidos.');
-      tocarErro();
-    }
+  if (chaveLivre) {
+    await atualizarConferencia(chaveLivre);
+  } else {
+    alert('Lote inválido ou já totalmente conferido.');
+    tocarErro();
+  }
+  setBip('');
+};
 
-    setBip('');
-  };
 
   const atualizarConferencia = async (chave: string) => {
     const reg = estado[chave];
@@ -151,7 +157,6 @@ export default function Home() {
       tocarErro();
       return;
     }
-
     if (reg.conferida >= reg.esperada) {
       alert('Quantidade já conferida.');
       tocarErro();
@@ -171,75 +176,85 @@ export default function Home() {
     });
   };
 
-const finalizarConferencia = () => {
-  const todosConferidos = Object.values(estado).every(reg => reg.conferida >= reg.esperada);
+  const finalizarConferencia = () => {
+    const todosConferidos = Object.values(estado).every(
+      reg => reg.conferida >= reg.esperada
+    );
 
-  if (!todosConferidos) {
-    alert('Ainda existem itens pendentes de conferência.');
-    tocarErro();
-    return;
-  }
-
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [100, 150] });
-
-  // Apenas texto no topo, sem imagem
-  doc.setFontSize(12);
-  doc.text(`Conferência Documento: ${documento}`, 10, 10);
-
-  const agrupado: Record<string, { item: string; lote: string; esperada: number; conferida: number }> = {};
-  Object.entries(estado).forEach(([_, reg]) => {
-    const id = `${reg.item}-${reg.lote}`;
-    if (!agrupado[id]) {
-      agrupado[id] = { item: reg.item, lote: reg.lote, esperada: 0, conferida: 0 };
+    if (!todosConferidos) {
+      alert('Ainda existem itens pendentes de conferência.');
+      tocarErro();
+      return;
     }
-    agrupado[id].esperada += reg.esperada;
-    agrupado[id].conferida += reg.conferida;
-  });
 
-  const body: string[][] = Object.values(agrupado).map(reg => [
-    reg.item,
-    reg.lote,
-    reg.esperada.toString(),
-  ]);
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: [100, 150],
+    });
 
-  autoTable(doc, {
-    head: [['Código', 'Lote', 'Quantidade']],
-    body,
-    startY: 15,
-    headStyles: {
-      fillColor: [52, 152, 219],
-      textColor: 255,
-      fontStyle: 'bold',
-    },
-    bodyStyles: {
-      fillColor: [250, 250, 250],
-      textColor: [50, 50, 50],
-    },
-    alternateRowStyles: {
-      fillColor: [240, 240, 240],
-    },
-    styles: {
-      fontSize: 10,
-      halign: 'center',
-    },
-  });
+    const img = new window.Image();
+    img.src = '/logo.png';
 
-  doc.save(`conferencia_${documento}.pdf`);
-  alert('Conferência realizada com sucesso!');
-};
+    img.onload = () => {
+      doc.addImage(img, 'PNG', 10, 10, 25, 10);
+      doc.setFontSize(12);
+      doc.text(`Conferência Documento: ${documento}`, 10, 30);
 
+      const agrupado: Record<string, { item: string; lote: string; esperada: number; conferida: number }> = {};
+      Object.entries(estado).forEach(([, reg]) => {
+        const id = `${reg.item}-${reg.lote}`;
+        if (!agrupado[id]) {
+          agrupado[id] = { item: reg.item, lote: reg.lote, esperada: 0, conferida: 0 };
+        }
+        agrupado[id].esperada += reg.esperada;
+        agrupado[id].conferida += reg.conferida;
+      });
 
-  const agrupado = Object.values(
-    Object.entries(estado).reduce((acc, [_, reg]) => {
-      const id = `${reg.item}-${reg.lote}`;
-      if (!acc[id]) {
-        acc[id] = { item: reg.item, lote: reg.lote, esperada: 0, conferida: 0 };
-      }
-      acc[id].esperada += reg.esperada;
-      acc[id].conferida += reg.conferida;
-      return acc;
-    }, {} as Record<string, { item: string; lote: string; esperada: number; conferida: number }>)
-  );
+      const body: string[][] = Object.values(agrupado).map(reg => [
+        reg.item,
+        reg.lote,
+        reg.esperada.toString(),
+      ]);
+
+      autoTable(doc, {
+        head: [['Código', 'Lote', 'Quantidade']],
+        body,
+        startY: 32,
+        headStyles: {
+          fillColor: [52, 152, 219],
+          textColor: 255,
+          fontStyle: 'bold',
+        },
+        bodyStyles: {
+          fillColor: [250, 250, 250],
+          textColor: [50, 50, 50],
+        },
+        alternateRowStyles: {
+          fillColor: [240, 240, 240],
+        },
+        styles: {
+          fontSize: 10,
+          halign: 'center',
+        },
+      });
+
+      doc.save(`conferencia_${documento}.pdf`);
+      alert('Conferência realizada com sucesso!');
+    };
+  };
+
+const agrupado = Object.values(
+  Object.entries(estado).reduce((acc, [, reg]) => {
+    const id = `${reg.item}-${reg.lote}`;
+    if (!acc[id]) {
+      acc[id] = { item: reg.item, lote: reg.lote, esperada: 0, conferida: 0 };
+    }
+    acc[id].esperada += reg.esperada;
+    acc[id].conferida += reg.conferida;
+    return acc;
+  }, {} as Record<string, { item: string; lote: string; esperada: number; conferida: number }>),
+);
 
   const todosConferidos = agrupado.every(reg => reg.conferida >= reg.esperada);
 
@@ -247,18 +262,36 @@ const finalizarConferencia = () => {
     <main className="container">
       <audio id="erro-audio" src="/erro.mp3" preload="auto"></audio>
 
-      <img src="/logo.png" alt="Logo da Empresa" style={{ width: '150px', marginBottom: '1.5rem', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />
+      <div style={{ textAlign: 'center' }}>
+        <Image
+          src="/logo.png"
+          alt="Logo da Empresa"
+          width={150}
+          height={60}
+          style={{ marginBottom: '1.5rem' }}
+        />
+      </div>
+
       <h1>Conferência de Pedidos</h1>
 
       <div className="form">
-        <input value={documento} onChange={e => setDocumento(e.target.value)} placeholder="Número do Documento" />
+        <input
+          value={documento}
+          onChange={e => setDocumento(e.target.value)}
+          placeholder="Número do Documento"
+        />
         <button onClick={buscarPedido}>Buscar</button>
       </div>
 
       {items.length > 0 && (
         <>
           <div className="form">
-            <input placeholder="Bipe código ou lote" value={bip} onChange={e => setBip(e.target.value)} onKeyDown={e => e.key === 'Enter' && processarBip(bip)} />
+            <input
+              placeholder="Bipe código ou lote"
+              value={bip}
+              onChange={e => setBip(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && processarBip(bip)}
+            />
           </div>
 
           <table className="styled-table">
@@ -272,7 +305,10 @@ const finalizarConferencia = () => {
             </thead>
             <tbody>
               {agrupado.map((reg, idx) => (
-                <tr key={idx} className={reg.conferida >= reg.esperada ? 'ok' : 'pendente'}>
+                <tr
+                  key={idx}
+                  className={reg.conferida >= reg.esperada ? 'ok' : 'pendente'}
+                >
                   <td>{reg.item}</td>
                   <td>{reg.lote}</td>
                   <td>{reg.esperada}</td>
@@ -282,7 +318,11 @@ const finalizarConferencia = () => {
             </tbody>
           </table>
 
-          <button className="btn-finalizar" onClick={finalizarConferencia} disabled={!todosConferidos}>
+          <button
+            className="btn-finalizar"
+            onClick={finalizarConferencia}
+            disabled={!todosConferidos}
+          >
             Finalizar Conferência
           </button>
         </>
