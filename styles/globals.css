@@ -35,6 +35,16 @@ main.container {
   box-shadow: var(--shadow);
 }
 
+.pendente {
+  color: red;
+  /* font-weight: bold; */
+}
+.ok {
+  color: green;
+  /* font-weight: bold; */
+}
+
+
 h1 {
   text-align: center;
   font-size: 2rem;
@@ -60,18 +70,22 @@ input {
 }
 
 button {
-  padding: 0.6rem 1.2rem;
+  position: calc(100% - 1.2rem);
+  max-width: 300px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.6rem;
   background-color: #008080;
   color: #ffffff;
   border: none;
   border-radius: var(--border-radius);
   cursor: pointer;
   transition: background 0.2s;
-  font-size: 1rem;
 }
 
 button:hover {
-  background-color: #008080;
+  background-color: #6fdada;
 }
 
 button:disabled {
@@ -98,9 +112,4 @@ table.styled-table tr.ok {
 
 table.styled-table tr.pendente {
   background-color: #ffcc00; /* Amarelo claro para pendente */
-}
-
-.btn-finalizar {
-  display: block;
-  margin: 2rem auto 0;
 }
