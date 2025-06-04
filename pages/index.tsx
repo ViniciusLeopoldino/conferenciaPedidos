@@ -78,7 +78,8 @@ export default function Home() {
     let nfParaPDF = documento.trim();
 
     if (documentoParaBuscar.length === 44 && /^\d+$/.test(documentoParaBuscar)) {
-      let nfNumberString = documentoParaBuscar.substring(25, 34);
+      // Ajuste aqui: troquei 'let' por 'const' para nfNumberString
+      const nfNumberString = documentoParaBuscar.substring(25, 34);
       nfParaPDF = parseInt(nfNumberString, 10).toString();
       documentoParaBuscar = nfParaPDF;
       console.log(`Chave NF bipada. Usando número da NF: ${documentoParaBuscar}`);
@@ -204,13 +205,18 @@ export default function Home() {
       return;
     }
 
+    // Formato A4 e unidade mm
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const img = new window.Image();
     img.src = '/logo.png';
 
     img.onload = () => {
-      doc.addImage(img, 'PNG', 92.5, 10, 40, 15);
+      // Posição X centralizada para A4 (210mm largura total - 40mm largura da imagem) / 2 = 85mm.
+      // Ajustado de 92.5 para 85 (se 40mm for a largura da imagem)
+      doc.addImage(img, 'PNG', 85, 10, 40, 15);
       doc.setFontSize(12);
+      // Posição do texto ajustada para A4.
+      // Você pode ajustar '16' (x) e '30' (y) para melhor posicionamento visual
       doc.text(`Conferência Documento: ${numeroNFParaPDF}`, 16, 30);
 
       const agrupado: Record<string, { item: string; lote: string; esperada: number; conferida: number }> = {};
@@ -230,12 +236,12 @@ export default function Home() {
       autoTable(doc, {
         head: [['Código', 'Lote', 'Quantidade']],
         body,
-        startY: 32,
+        startY: 32, // Início da tabela
         headStyles: { fillColor: [52, 152, 219], textColor: 255, fontStyle: 'bold' },
         bodyStyles: { fillColor: [250, 250, 250], textColor: [50, 50, 50] },
         alternateRowStyles: { fillColor: [240, 240, 240] },
         styles: { fontSize: 10, halign: 'center' },
-        // Ajuste para a largura da tabela:
+        // Largura da tabela para ocupar toda a largura disponível no A4
         tableWidth: 'auto',
       });
 
@@ -285,6 +291,8 @@ export default function Home() {
       <audio id="erro-audio" src="/erro.mp3" preload="auto"></audio>
 
       <div style={{ textAlign: 'center' }}>
+        {/* Aqui você pode manter a largura e altura da imagem conforme o layout da sua página. */}
+        {/* A largura de 150px e altura de 50px parece ser para a exibição na web. */}
         <Image src="/logo.png" alt="Logo da Empresa" width={150} height={50} style={{ marginBottom: '1.5rem' }} />
       </div>
 
