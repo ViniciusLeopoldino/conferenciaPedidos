@@ -58,6 +58,7 @@ type EstadoItem = {
 
 export default function Home() {
   const [documento, setDocumento] = useState('');
+  const [numeroNFParaPDF, setNumeroNFParaPDF] = useState('');
   const [items, setItems] = useState<ItemAPI[]>([]);
   const [estado, setEstado] = useState<Record<string, EstadoItem>>({});
   const [bip, setBip] = useState('');
@@ -68,13 +69,28 @@ export default function Home() {
 
   const buscarPedido = async () => {
     if (!documento.trim()) {
-      alert('Informe o número do documento');
+      alert('Informe o número do documento ou bipar a chave da NF.');
       tocarErro();
       return;
     }
+
+    let documentoParaBuscar = documento.trim();
+    let nfParaPDF = documento.trim();
+
+    if (documentoParaBuscar.length === 44 && /^\d+$/.test(documentoParaBuscar)) {
+      let nfNumberString = documentoParaBuscar.substring(25, 34);
+      nfParaPDF = parseInt(nfNumberString, 10).toString();
+      documentoParaBuscar = nfParaPDF;
+      console.log(`Chave NF bipada. Usando número da NF: ${documentoParaBuscar}`);
+    } else {
+      nfParaPDF = documentoParaBuscar;
+    }
+
+    setNumeroNFParaPDF(nfParaPDF);
+
     try {
       const res = await fetch(
-        `https://api.maglog.com.br/api-wms/rest/1/event/expedicao?Documento=${documento}`,
+        `https://api.maglog.com.br/api-wms/rest/1/event/expedicao?Documento=${documentoParaBuscar}`,
         {
           headers: {
             Tenant: 'F8A63EBF-A4C5-457D-9482-2D6381318B8E',
@@ -188,14 +204,14 @@ export default function Home() {
       return;
     }
 
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [100, 150] });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const img = new window.Image();
     img.src = '/logo.png';
 
     img.onload = () => {
-      doc.addImage(img, 'PNG', 10, 10, 25, 10);
+      doc.addImage(img, 'PNG', 92.5, 10, 40, 15);
       doc.setFontSize(12);
-      doc.text(`Conferência Documento: ${documento}`, 10, 30);
+      doc.text(`Conferência Documento: ${numeroNFParaPDF}`, 16, 30);
 
       const agrupado: Record<string, { item: string; lote: string; esperada: number; conferida: number }> = {};
       Object.entries(estado).forEach(([, reg]) => {
@@ -219,9 +235,11 @@ export default function Home() {
         bodyStyles: { fillColor: [250, 250, 250], textColor: [50, 50, 50] },
         alternateRowStyles: { fillColor: [240, 240, 240] },
         styles: { fontSize: 10, halign: 'center' },
+        // Ajuste para a largura da tabela:
+        tableWidth: 'auto',
       });
 
-      doc.save(`conferencia_${documento}.pdf`);
+      doc.save(`conferencia_${numeroNFParaPDF}.pdf`);
       alert('Conferência realizada com sucesso!');
     };
   };
@@ -259,21 +277,27 @@ export default function Home() {
   });
 
   const todosConferidos = Object.values(estado).every(
-  (reg) => reg.conferida >= reg.esperada
-);
+    (reg) => reg.conferida >= reg.esperada
+  );
 
   return (
     <main className="container">
       <audio id="erro-audio" src="/erro.mp3" preload="auto"></audio>
 
       <div style={{ textAlign: 'center' }}>
-        <Image src="/logo.png" alt="Logo da Empresa" width={150} height={60} style={{ marginBottom: '1.5rem' }} />
+        <Image src="/logo.png" alt="Logo da Empresa" width={150} height={50} style={{ marginBottom: '1.5rem' }} />
       </div>
 
-      <h1>Conferência de Pedidos</h1>
+      <h1>Conferência de Pedidos - {numeroNFParaPDF}</h1>
+      {/* <h2>Conferindo Pedido: {numeroNFParaPDF}</h2> */}
 
       <div className="form">
-        <input value={documento} onChange={e => setDocumento(e.target.value)} placeholder="Número do Documento" />
+        <input
+          value={documento}
+          onChange={e => setDocumento(e.target.value)}
+          placeholder="Número do Documento ou Chave da NF"
+          onKeyDown={e => e.key === 'Enter' && buscarPedido()}
+        />
         <button onClick={buscarPedido}>Buscar</button>
       </div>
 
