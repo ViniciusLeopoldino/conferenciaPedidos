@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { supabase } from '../lib/supabaseClient';
 import Image from 'next/image';
 
+// --- Tipagens (sem alterações) ---
 type LoteAPI = {
   Codigo: string;
   Fabricacao: string;
@@ -61,7 +62,47 @@ export default function Home() {
   const [numeroNFParaPDF, setNumeroNFParaPDF] = useState('');
   const [items, setItems] = useState<ItemAPI[]>([]);
   const [estado, setEstado] = useState<Record<string, EstadoItem>>({});
-  const [bip, setBip] = useState('');
+
+  const [loteBipado, setLoteBipado] = useState('');
+  const [quantidadeBipada, setQuantidadeBipada] = useState('');
+  const [loteParaConferencia, setLoteParaConferencia] = useState<string | null>(null);
+
+  const loteInputRef = useRef<HTMLInputElement>(null);
+  const quantidadeInputRef = useRef<HTMLInputElement>(null);
+  const documentoInputRef = useRef<HTMLInputElement>(null);
+
+
+  // --- AJUSTE DE FOCO COM useEffect ---
+
+  // Efeito 1: Foca no input de QUANTIDADE quando um lote é selecionado.
+  useEffect(() => {
+    if (loteParaConferencia && quantidadeInputRef.current) {
+      // Usamos um pequeno delay para garantir que o input esteja visível e pronto.
+      const timer = setTimeout(() => {
+        quantidadeInputRef.current?.focus();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [loteParaConferencia]);
+
+  // Efeito 2: Foca no input de LOTE quando a página carrega ou um lote é finalizado.
+  useEffect(() => {
+    // A condição para focar no lote é: ter itens carregados, mas não estar no meio de uma conferência de lote.
+    const deveFocarLote = items.length > 0 && loteParaConferencia === null;
+    
+    // Verificamos também se todos os itens já não foram conferidos.
+    const todosConferidos = items.length > 0 && Object.values(estado).every(
+        (reg) => reg.conferida >= reg.esperada
+      );
+
+    if (deveFocarLote && !todosConferidos) {
+      const timer = setTimeout(() => {
+        loteInputRef.current?.focus();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [items, loteParaConferencia, estado]); // Depende do estado para reavaliar quando a conferência termina.
+
 
   const tocarErro = () => {
     (document.getElementById('erro-audio') as HTMLAudioElement | null)?.play();
@@ -78,11 +119,9 @@ export default function Home() {
     let nfParaPDF = documento.trim();
 
     if (documentoParaBuscar.length === 44 && /^\d+$/.test(documentoParaBuscar)) {
-      // Ajuste aqui: troquei 'let' por 'const' para nfNumberString
       const nfNumberString = documentoParaBuscar.substring(25, 34);
       nfParaPDF = parseInt(nfNumberString, 10).toString();
       documentoParaBuscar = nfParaPDF;
-      console.log(`Chave NF bipada. Usando número da NF: ${documentoParaBuscar}`);
     } else {
       nfParaPDF = documentoParaBuscar;
     }
@@ -145,6 +184,9 @@ export default function Home() {
         }
       });
       setEstado(init);
+
+      // A chamada de foco foi REMOVIDA daqui e transferida para o useEffect.
+
     } catch (err) {
       console.error('Erro ao buscar pedido:', err);
       alert('Erro na requisição da API.');
@@ -152,48 +194,91 @@ export default function Home() {
     }
   };
 
-  const processarBip = async (entrada: string) => {
-    const chaveDigitada = entrada.trim();
-    if (!chaveDigitada) return;
+  const processarLote = (entrada: string) => {
+    const loteDigitado = entrada.trim();
+    if (!loteDigitado) return;
 
-    const chaveLivre = Object.entries(estado).find(
-      ([, reg]) => reg.lote === chaveDigitada && reg.conferida < reg.esperada
-    )?.[0];
+    const loteValido = Object.values(estado).some(
+      reg => reg.lote === loteDigitado && reg.conferida < reg.esperada
+    );
 
-    if (chaveLivre) {
-      await atualizarConferencia(chaveLivre);
+    if (loteValido) {
+      setLoteParaConferencia(loteDigitado);
+      setLoteBipado(loteDigitado);
     } else {
       alert('Lote inválido ou já totalmente conferido.');
       tocarErro();
+      setLoteBipado('');
     }
-    setBip('');
   };
 
-  const atualizarConferencia = async (chave: string) => {
-    const reg = estado[chave];
-    if (!reg || reg.conferida >= reg.esperada) {
-      alert('Chave inválida ou já conferida.');
-      tocarErro();
-      return;
+  const processarConferencia = async () => {
+    const quantidade = parseInt(quantidadeBipada, 10);
+
+    if (!loteParaConferencia || isNaN(quantidade) || quantidade <= 0) {
+        alert('Por favor, insira uma quantidade válida.');
+        tocarErro();
+        setQuantidadeBipada('');
+        return;
     }
 
-    const novo = {
-      ...reg,
-      conferida: reg.conferida + 1,
-      ultimaAtualizacao: Date.now(),
-    };
-    setEstado(prev => ({ ...prev, [chave]: novo }));
+    const chavesPendentes = Object.keys(estado).filter(
+        key => estado[key].lote === loteParaConferencia && estado[key].conferida < estado[key].esperada
+    );
 
-    await supabase.from('conferencias').insert({
-      documento,
-      codigo_item: reg.item,
-      lote: reg.lote,
-      quantidade_esperada: reg.esperada,
-      quantidade_conferida: novo.conferida,
-      data: new Date().toISOString(),
-    });
+    if (chavesPendentes.length < quantidade) {
+        alert(`Quantidade a conferir (${quantidade}) é maior que a pendente (${chavesPendentes.length}).`);
+        tocarErro();
+        setQuantidadeBipada('');
+        return;
+    }
+
+    const chavesParaAtualizar = chavesPendentes.slice(0, quantidade);
+    await atualizarConferencia(chavesParaAtualizar);
+
+    const pendentesAposUpdate = chavesPendentes.length - quantidade;
+
+    if (pendentesAposUpdate > 0) {
+        setQuantidadeBipada('');
+    } else {
+        setLoteBipado('');
+        setQuantidadeBipada('');
+        setLoteParaConferencia(null);
+        // A chamada de foco foi REMOVIDA daqui e transferida para o useEffect.
+    }
   };
 
+  const atualizarConferencia = async (chaves: string[]) => {
+      const timestamp = Date.now();
+      
+      setEstado(prevEstado => {
+        const novoEstado = { ...prevEstado };
+        chaves.forEach(chave => {
+            const reg = novoEstado[chave];
+            if (reg) {
+                novoEstado[chave] = {
+                    ...reg,
+                    conferida: reg.conferida + 1,
+                    ultimaAtualizacao: timestamp,
+                };
+            }
+        });
+        return novoEstado;
+      });
+  
+      const regBase = estado[chaves[0]];
+      
+      await supabase.from('conferencias').insert({
+          documento,
+          codigo_item: regBase.item,
+          lote: regBase.lote,
+          quantidade_esperada: chaves.length, 
+          quantidade_conferida: chaves.length,
+          data: new Date().toISOString(),
+      });
+  };
+
+  // Restante do código (finalizarConferencia, JSX, etc.) permanece o mesmo...
   const finalizarConferencia = () => {
     const todosConferidos = Object.values(estado).every(
       reg => reg.conferida >= reg.esperada
@@ -205,18 +290,13 @@ export default function Home() {
       return;
     }
 
-    // Formato A4 e unidade mm
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const img = new window.Image();
     img.src = '/logo.png';
 
     img.onload = () => {
-      // Posição X centralizada para A4 (210mm largura total - 40mm largura da imagem) / 2 = 85mm.
-      // Ajustado de 92.5 para 85 (se 40mm for a largura da imagem)
       doc.addImage(img, 'PNG', 85, 10, 40, 15);
       doc.setFontSize(12);
-      // Posição do texto ajustada para A4.
-      // Você pode ajustar '16' (x) e '30' (y) para melhor posicionamento visual
       doc.text(`Conferência Documento: ${numeroNFParaPDF}`, 16, 30);
 
       const agrupado: Record<string, { item: string; lote: string; esperada: number; conferida: number }> = {};
@@ -236,12 +316,11 @@ export default function Home() {
       autoTable(doc, {
         head: [['Código', 'Lote', 'Quantidade']],
         body,
-        startY: 32, // Início da tabela
+        startY: 32,
         headStyles: { fillColor: [52, 152, 219], textColor: 255, fontStyle: 'bold' },
         bodyStyles: { fillColor: [250, 250, 250], textColor: [50, 50, 50] },
         alternateRowStyles: { fillColor: [240, 240, 240] },
         styles: { fontSize: 10, halign: 'center' },
-        // Largura da tabela para ocupar toda a largura disponível no A4
         tableWidth: 'auto',
       });
 
@@ -282,7 +361,7 @@ export default function Home() {
     return 0;
   });
 
-  const todosConferidos = Object.values(estado).every(
+  const todosConferidos = Object.values(estado).length > 0 && Object.values(estado).every(
     (reg) => reg.conferida >= reg.esperada
   );
 
@@ -291,33 +370,53 @@ export default function Home() {
       <audio id="erro-audio" src="/erro.mp3" preload="auto"></audio>
 
       <div style={{ textAlign: 'center' }}>
-        {/* Aqui você pode manter a largura e altura da imagem conforme o layout da sua página. */}
-        {/* A largura de 150px e altura de 50px parece ser para a exibição na web. */}
         <Image src="/logo.png" alt="Logo da Empresa" width={150} height={50} style={{ marginBottom: '1.5rem' }} />
       </div>
 
       <h1>Conferência de Pedidos - {numeroNFParaPDF}</h1>
-      {/* <h2>Conferindo Pedido: {numeroNFParaPDF}</h2> */}
 
       <div className="form">
         <input
+          ref={documentoInputRef}
           value={documento}
           onChange={e => setDocumento(e.target.value)}
           placeholder="Número do Documento ou Chave da NF"
           onKeyDown={e => e.key === 'Enter' && buscarPedido()}
+          disabled={items.length > 0}
         />
-        <button onClick={buscarPedido}>Buscar</button>
+        <button onClick={buscarPedido} disabled={items.length > 0}>Buscar</button>
       </div>
 
       {items.length > 0 && (
         <>
-          <div className="form">
-            <input
-              placeholder="Bipe código ou lote"
-              value={bip}
-              onChange={e => setBip(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && processarBip(bip)}
-            />
+          <div className="form-conferencia">
+            <div className="input-group">
+                <label htmlFor="lote-input">Lote</label>
+                <input
+                    id='lote-input'
+                    ref={loteInputRef}
+                    placeholder="Bipe o lote"
+                    value={loteBipado}
+                    onChange={e => setLoteBipado(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && processarLote(loteBipado)}
+                    disabled={!!loteParaConferencia} 
+                />
+            </div>
+
+            {loteParaConferencia && (
+              <div className="input-group">
+                <label htmlFor="quantidade-input">Quantidade</label>
+                <input
+                    id='quantidade-input'
+                    ref={quantidadeInputRef}
+                    placeholder="Bipe a Qtde"
+                    type="number"
+                    value={quantidadeBipada}
+                    onChange={e => setQuantidadeBipada(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && processarConferencia()}
+                />
+              </div>
+            )}
           </div>
 
           <table className="styled-table">

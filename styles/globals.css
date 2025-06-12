@@ -70,7 +70,8 @@ input {
 }
 
 button {
-  position: calc(100% - 1.2rem);
+  /* A propriedade position aqui parece incomum, talvez revisar? */
+  /* position: calc(100% - 1.2rem);  */
   max-width: 300px;
   display: flex;
   justify-content: center;
@@ -107,9 +108,49 @@ table.styled-table td {
 }
 
 table.styled-table tr.ok {
-  background-color: #00ff15; /* Verde claro para conferido */
+  background-color: #d4edda; /* Verde mais suave para conferido */
 }
 
 table.styled-table tr.pendente {
-  background-color: #ffcc00; /* Amarelo claro para pendente */
+  background-color: #fff3cd; /* Amarelo mais suave para pendente */
 }
+
+
+/* --- INÍCIO DOS ESTILOS SUGERIDOS --- */
+
+/* Estiliza o contêiner dos novos inputs (Lote e Quantidade) */
+.form-conferencia {
+  display: flex;
+  justify-content: center; /* Centraliza os grupos de input */
+  gap: 1.5rem; /* Espaço entre os inputs de Lote e Quantidade */
+  align-items: flex-end; /* Alinha os inputs pela base */
+  margin-bottom: 1.5rem; /* Espaço antes da tabela */
+  flex-wrap: wrap; /* Permite que os itens quebrem para a linha de baixo em telas pequenas */
+}
+
+/* Agrupa o label e o input para melhor organização */
+.input-group {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Estilo para os labels dos novos inputs */
+.input-group label {
+  margin-bottom: 0.25rem;
+  font-size: 0.9rem;
+  color: #555;
+  font-weight: bold;
+}
+
+/* Ajuste específico para o input de Lote, para ter a mesma largura que o de documento */
+#lote-input {
+  max-width: 300px;
+}
+
+/* Ajuste para o input de quantidade não ser muito largo */
+.input-group input[type="number"] {
+  width: 150px; /* Um pouco mais de espaço para o placeholder */
+  flex: none; /* Remove a propriedade flexível para manter a largura fixa */
+}
+
+/* --- FIM DOS ESTILOS SUGERIDOS --- */
