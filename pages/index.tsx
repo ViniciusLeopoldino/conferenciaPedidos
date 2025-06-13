@@ -72,12 +72,11 @@ export default function Home() {
   const documentoInputRef = useRef<HTMLInputElement>(null);
 
 
-  // --- AJUSTE DE FOCO COM useEffect ---
+  // --- GERENCIAMENTO DE FOCO COM useEffect ---
 
-  // Efeito 1: Foca no input de QUANTIDADE quando um lote é selecionado.
+  // Foca no input de QUANTIDADE quando um lote é selecionado.
   useEffect(() => {
     if (loteParaConferencia && quantidadeInputRef.current) {
-      // Usamos um pequeno delay para garantir que o input esteja visível e pronto.
       const timer = setTimeout(() => {
         quantidadeInputRef.current?.focus();
       }, 0);
@@ -85,15 +84,12 @@ export default function Home() {
     }
   }, [loteParaConferencia]);
 
-  // Efeito 2: Foca no input de LOTE quando a página carrega ou um lote é finalizado.
+  // Foca no input de LOTE quando há um pedido carregado e a conferência de um lote não está em andamento.
   useEffect(() => {
-    // A condição para focar no lote é: ter itens carregados, mas não estar no meio de uma conferência de lote.
     const deveFocarLote = items.length > 0 && loteParaConferencia === null;
-    
-    // Verificamos também se todos os itens já não foram conferidos.
     const todosConferidos = items.length > 0 && Object.values(estado).every(
-        (reg) => reg.conferida >= reg.esperada
-      );
+      (reg) => reg.conferida >= reg.esperada
+    );
 
     if (deveFocarLote && !todosConferidos) {
       const timer = setTimeout(() => {
@@ -101,7 +97,18 @@ export default function Home() {
       }, 0);
       return () => clearTimeout(timer);
     }
-  }, [items, loteParaConferencia, estado]); // Depende do estado para reavaliar quando a conferência termina.
+  }, [items, loteParaConferencia, estado]);
+
+  // --- NOVO ---
+  // Foca no input de DOCUMENTO quando a aplicação está pronta para um novo pedido (sem itens carregados).
+  useEffect(() => {
+      if (items.length === 0 && documentoInputRef.current) {
+          const timer = setTimeout(() => {
+              documentoInputRef.current?.focus();
+          }, 0);
+          return () => clearTimeout(timer);
+      }
+  }, [items]);
 
 
   const tocarErro = () => {
@@ -185,8 +192,6 @@ export default function Home() {
       });
       setEstado(init);
 
-      // A chamada de foco foi REMOVIDA daqui e transferida para o useEffect.
-
     } catch (err) {
       console.error('Erro ao buscar pedido:', err);
       alert('Erro na requisição da API.');
@@ -244,7 +249,6 @@ export default function Home() {
         setLoteBipado('');
         setQuantidadeBipada('');
         setLoteParaConferencia(null);
-        // A chamada de foco foi REMOVIDA daqui e transferida para o useEffect.
     }
   };
 
@@ -278,7 +282,18 @@ export default function Home() {
       });
   };
 
-  // Restante do código (finalizarConferencia, JSX, etc.) permanece o mesmo...
+  // --- NOVO ---
+  // Função para resetar o estado da aplicação para a próxima conferência.
+  const resetarAplicacao = () => {
+      setDocumento('');
+      setNumeroNFParaPDF('');
+      setItems([]);
+      setEstado({});
+      setLoteBipado('');
+      setQuantidadeBipada('');
+      setLoteParaConferencia(null);
+  };
+
   const finalizarConferencia = () => {
     const todosConferidos = Object.values(estado).every(
       reg => reg.conferida >= reg.esperada
@@ -325,10 +340,16 @@ export default function Home() {
       });
 
       doc.save(`conferencia_${numeroNFParaPDF}.pdf`);
+      
       alert('Conferência realizada com sucesso!');
+      
+      // --- AJUSTE ---
+      // Chama a função de reset para preparar a aplicação para o próximo pedido.
+      resetarAplicacao();
     };
   };
 
+  // Lógica de agrupamento para exibição (sem alterações)
   const agrupadoMap = Object.entries(estado).reduce((acc, [, reg]) => {
     const id = `${reg.item}-${reg.lote}`;
     if (!acc[id]) {
@@ -399,7 +420,7 @@ export default function Home() {
                     value={loteBipado}
                     onChange={e => setLoteBipado(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && processarLote(loteBipado)}
-                    disabled={!!loteParaConferencia} 
+                    disabled={!!loteParaConferencia || todosConferidos} // Desabilita se um lote já foi bipado ou se tudo foi conferido
                 />
             </div>
 
