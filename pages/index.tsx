@@ -57,24 +57,25 @@ type EstadoItem = {
   ultimaAtualizacao?: number;
 };
 
+const CLIENTES = [
+    { nome: 'Endress + Hauser', id: '0157A619-B0CF-4327-82B2-E4084DBAC7DD' },
+    { nome: 'Um Grau e Meio', id: '8A697099-E130-4A57-BE47-DD8B72E3C003' },
+];
+
+
 export default function Home() {
+  const [clienteSelecionado, setClienteSelecionado] = useState(CLIENTES[0].id);
   const [documento, setDocumento] = useState('');
   const [numeroNFParaPDF, setNumeroNFParaPDF] = useState('');
   const [items, setItems] = useState<ItemAPI[]>([]);
   const [estado, setEstado] = useState<Record<string, EstadoItem>>({});
-
   const [loteBipado, setLoteBipado] = useState('');
   const [quantidadeBipada, setQuantidadeBipada] = useState('');
   const [loteParaConferencia, setLoteParaConferencia] = useState<string | null>(null);
-
   const loteInputRef = useRef<HTMLInputElement>(null);
   const quantidadeInputRef = useRef<HTMLInputElement>(null);
   const documentoInputRef = useRef<HTMLInputElement>(null);
 
-
-  // --- GERENCIAMENTO DE FOCO COM useEffect ---
-
-  // Foca no input de QUANTIDADE quando um lote é selecionado.
   useEffect(() => {
     if (loteParaConferencia && quantidadeInputRef.current) {
       const timer = setTimeout(() => {
@@ -84,13 +85,11 @@ export default function Home() {
     }
   }, [loteParaConferencia]);
 
-  // Foca no input de LOTE quando há um pedido carregado e a conferência de um lote não está em andamento.
   useEffect(() => {
     const deveFocarLote = items.length > 0 && loteParaConferencia === null;
     const todosConferidos = items.length > 0 && Object.values(estado).every(
       (reg) => reg.conferida >= reg.esperada
     );
-
     if (deveFocarLote && !todosConferidos) {
       const timer = setTimeout(() => {
         loteInputRef.current?.focus();
@@ -99,8 +98,6 @@ export default function Home() {
     }
   }, [items, loteParaConferencia, estado]);
 
-  // --- NOVO ---
-  // Foca no input de DOCUMENTO quando a aplicação está pronta para um novo pedido (sem itens carregados).
   useEffect(() => {
       if (items.length === 0 && documentoInputRef.current) {
           const timer = setTimeout(() => {
@@ -110,21 +107,24 @@ export default function Home() {
       }
   }, [items]);
 
-
   const tocarErro = () => {
     (document.getElementById('erro-audio') as HTMLAudioElement | null)?.play();
   };
 
   const buscarPedido = async () => {
+    if (!clienteSelecionado) {
+        alert('Por favor, selecione um cliente.');
+        tocarErro();
+        return;
+    }
     if (!documento.trim()) {
       alert('Informe o número do documento ou bipar a chave da NF.');
       tocarErro();
       return;
     }
-
+    
     let documentoParaBuscar = documento.trim();
     let nfParaPDF = documento.trim();
-
     if (documentoParaBuscar.length === 44 && /^\d+$/.test(documentoParaBuscar)) {
       const nfNumberString = documentoParaBuscar.substring(25, 34);
       nfParaPDF = parseInt(nfNumberString, 10).toString();
@@ -132,7 +132,6 @@ export default function Home() {
     } else {
       nfParaPDF = documentoParaBuscar;
     }
-
     setNumeroNFParaPDF(nfParaPDF);
 
     try {
@@ -141,15 +140,14 @@ export default function Home() {
         {
           headers: {
             Tenant: 'F8A63EBF-A4C5-457D-9482-2D6381318B8E',
-            Owner: '0157A619-B0CF-4327-82B2-E4084DBAC7DD',
+            Owner: clienteSelecionado,
           },
         }
       );
       const data = await res.json();
       const apiItens: ItemRaw[] = data.itens;
-
       if (!Array.isArray(apiItens) || apiItens.length === 0) {
-        alert('Pedido não encontrado ou sem itens.');
+        alert('Pedido não encontrado ou sem itens para o cliente selecionado.');
         tocarErro();
         setItems([]);
         return;
@@ -170,7 +168,6 @@ export default function Home() {
             }))
           : [],
       }));
-
       setItems(mapped);
 
       const init: Record<string, EstadoItem> = {};
@@ -191,7 +188,6 @@ export default function Home() {
         }
       });
       setEstado(init);
-
     } catch (err) {
       console.error('Erro ao buscar pedido:', err);
       alert('Erro na requisição da API.');
@@ -200,49 +196,62 @@ export default function Home() {
   };
 
   const processarLote = (entrada: string) => {
-    const loteDigitado = entrada.trim();
-    if (!loteDigitado) return;
-
-    const loteValido = Object.values(estado).some(
-      reg => reg.lote === loteDigitado && reg.conferida < reg.esperada
+    const valorBipado = entrada.trim();
+    if (!valorBipado) return;
+    const loteDiretoPendente = Object.values(estado).find(
+      (reg) => reg.lote === valorBipado && reg.conferida < reg.esperada
     );
-
-    if (loteValido) {
-      setLoteParaConferencia(loteDigitado);
-      setLoteBipado(loteDigitado);
-    } else {
-      alert('Lote inválido ou já totalmente conferido.');
-      tocarErro();
-      setLoteBipado('');
+    if (loteDiretoPendente) {
+      setLoteParaConferencia(valorBipado);
+      setLoteBipado(valorBipado);
+      return;
     }
+    const registrosDoItem = Object.values(estado).filter(
+      (reg) => reg.item === valorBipado && reg.conferida < reg.esperada
+    );
+    if (registrosDoItem.length > 0) {
+      const lotesPendentes = [...new Set(registrosDoItem.map((reg) => reg.lote))];
+      if (lotesPendentes.length === 1) {
+        const loteUnico = lotesPendentes[0];
+        setLoteParaConferencia(loteUnico);
+        setLoteBipado(valorBipado);
+        return;
+      } else {
+        alert(
+          `Este item possui múltiplos lotes pendentes (${lotesPendentes.join(
+            ', '
+          )}). Por favor, bipe o código de um dos lotes.`
+        );
+        tocarErro();
+        setLoteBipado('');
+        return;
+      }
+    }
+    alert('Item ou Lote inválido, não encontrado no pedido ou já totalmente conferido.');
+    tocarErro();
+    setLoteBipado('');
   };
 
   const processarConferencia = async () => {
     const quantidade = parseInt(quantidadeBipada, 10);
-
     if (!loteParaConferencia || isNaN(quantidade) || quantidade <= 0) {
         alert('Por favor, insira uma quantidade válida.');
         tocarErro();
         setQuantidadeBipada('');
         return;
     }
-
     const chavesPendentes = Object.keys(estado).filter(
         key => estado[key].lote === loteParaConferencia && estado[key].conferida < estado[key].esperada
     );
-
     if (chavesPendentes.length < quantidade) {
         alert(`Quantidade a conferir (${quantidade}) é maior que a pendente (${chavesPendentes.length}).`);
         tocarErro();
         setQuantidadeBipada('');
         return;
     }
-
     const chavesParaAtualizar = chavesPendentes.slice(0, quantidade);
     await atualizarConferencia(chavesParaAtualizar);
-
     const pendentesAposUpdate = chavesPendentes.length - quantidade;
-
     if (pendentesAposUpdate > 0) {
         setQuantidadeBipada('');
     } else {
@@ -254,7 +263,6 @@ export default function Home() {
 
   const atualizarConferencia = async (chaves: string[]) => {
       const timestamp = Date.now();
-      
       setEstado(prevEstado => {
         const novoEstado = { ...prevEstado };
         chaves.forEach(chave => {
@@ -269,21 +277,18 @@ export default function Home() {
         });
         return novoEstado;
       });
-  
       const regBase = estado[chaves[0]];
-      
       await supabase.from('conferencias').insert({
           documento,
           codigo_item: regBase.item,
           lote: regBase.lote,
+          owner: clienteSelecionado,
           quantidade_esperada: chaves.length, 
           quantidade_conferida: chaves.length,
           data: new Date().toISOString(),
       });
   };
 
-  // --- NOVO ---
-  // Função para resetar o estado da aplicação para a próxima conferência.
   const resetarAplicacao = () => {
       setDocumento('');
       setNumeroNFParaPDF('');
@@ -298,22 +303,20 @@ export default function Home() {
     const todosConferidos = Object.values(estado).every(
       reg => reg.conferida >= reg.esperada
     );
-
     if (!todosConferidos) {
       alert('Ainda existem itens pendentes de conferência.');
       tocarErro();
       return;
     }
-
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const img = new window.Image();
     img.src = '/logo.png';
-
     img.onload = () => {
+      const nomeCliente = CLIENTES.find(c => c.id === clienteSelecionado)?.nome || 'Cliente não encontrado';
       doc.addImage(img, 'PNG', 85, 10, 40, 15);
       doc.setFontSize(12);
       doc.text(`Conferência Documento: ${numeroNFParaPDF}`, 16, 30);
-
+      doc.text(`Cliente: ${nomeCliente}`, 16, 35);
       const agrupado: Record<string, { item: string; lote: string; esperada: number; conferida: number }> = {};
       Object.entries(estado).forEach(([, reg]) => {
         const id = `${reg.item}-${reg.lote}`;
@@ -321,35 +324,27 @@ export default function Home() {
         agrupado[id].esperada += reg.esperada;
         agrupado[id].conferida += reg.conferida;
       });
-
       const body: string[][] = Object.values(agrupado).map(reg => [
         reg.item,
         reg.lote,
         reg.esperada.toString(),
       ]);
-
       autoTable(doc, {
         head: [['Código', 'Lote', 'Quantidade']],
         body,
-        startY: 32,
+        startY: 40,
         headStyles: { fillColor: [52, 152, 219], textColor: 255, fontStyle: 'bold' },
         bodyStyles: { fillColor: [250, 250, 250], textColor: [50, 50, 50] },
         alternateRowStyles: { fillColor: [240, 240, 240] },
         styles: { fontSize: 10, halign: 'center' },
         tableWidth: 'auto',
       });
-
       doc.save(`conferencia_${numeroNFParaPDF}.pdf`);
-      
       alert('Conferência realizada com sucesso!');
-      
-      // --- AJUSTE ---
-      // Chama a função de reset para preparar a aplicação para o próximo pedido.
       resetarAplicacao();
     };
   };
 
-  // Lógica de agrupamento para exibição (sem alterações)
   const agrupadoMap = Object.entries(estado).reduce((acc, [, reg]) => {
     const id = `${reg.item}-${reg.lote}`;
     if (!acc[id]) {
@@ -376,7 +371,6 @@ export default function Home() {
   agrupado.sort((a, b) => {
     const statusA = a.bipado ? (a.conferida >= a.esperada ? 1 : 0) : 2;
     const statusB = b.bipado ? (b.conferida >= b.esperada ? 1 : 0) : 2;
-
     if (statusA !== statusB) return statusA - statusB;
     if (statusA === 0) return (b.ultimaAtualizacao ?? 0) - (a.ultimaAtualizacao ?? 0);
     return 0;
@@ -395,16 +389,35 @@ export default function Home() {
       </div>
 
       <h1>Conferência de Pedidos - {numeroNFParaPDF}</h1>
-
+      
+      {/* --- ALTERAÇÃO NO LAYOUT --- */}
       <div className="form">
-        <input
-          ref={documentoInputRef}
-          value={documento}
-          onChange={e => setDocumento(e.target.value)}
-          placeholder="Número do Documento ou Chave da NF"
-          onKeyDown={e => e.key === 'Enter' && buscarPedido()}
-          disabled={items.length > 0}
-        />
+        <div className="input-group" style={{ marginBottom: '1rem' }}>
+          <label htmlFor="cliente-select">Selecione o Cliente</label>
+          <select
+              id="cliente-select"
+              value={clienteSelecionado}
+              onChange={e => setClienteSelecionado(e.target.value)}
+              disabled={items.length > 0}
+          >
+              {CLIENTES.map(cliente => (
+                  <option key={cliente.id} value={cliente.id}>
+                      {cliente.nome}
+                  </option>
+              ))}
+          </select>
+        </div>
+      
+        <div className="input-group" style={{ display: 'flex', width: '100%', alignItems: 'center' }}>
+          <input
+            ref={documentoInputRef}
+            value={documento}
+            onChange={e => setDocumento(e.target.value)}
+            placeholder="Número ou Chave da NF"
+            onKeyDown={e => e.key === 'Enter' && buscarPedido()}
+            disabled={items.length > 0}
+          />
+        </div>
         <button onClick={buscarPedido} disabled={items.length > 0}>Buscar</button>
       </div>
 
@@ -412,16 +425,16 @@ export default function Home() {
         <>
           <div className="form-conferencia">
             <div className="input-group">
-                <label htmlFor="lote-input">Lote</label>
-                <input
-                    id='lote-input'
-                    ref={loteInputRef}
-                    placeholder="Bipe o lote"
-                    value={loteBipado}
-                    onChange={e => setLoteBipado(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && processarLote(loteBipado)}
-                    disabled={!!loteParaConferencia || todosConferidos} // Desabilita se um lote já foi bipado ou se tudo foi conferido
-                />
+              <label htmlFor="lote-input">Item / Lote</label>
+              <input
+                  id='lote-input'
+                  ref={loteInputRef}
+                  placeholder="Bipe o Item ou Lote"
+                  value={loteBipado}
+                  onChange={e => setLoteBipado(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && processarLote(loteBipado)}
+                  disabled={!!loteParaConferencia || todosConferidos}
+              />
             </div>
 
             {loteParaConferencia && (
