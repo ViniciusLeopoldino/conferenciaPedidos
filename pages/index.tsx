@@ -465,6 +465,7 @@ export default function Home() {
                     onChange={e => setLoteBipado(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && processarLote(loteBipado)}
                     disabled={!!loteParaConferencia || todosConferidos}
+                    style={{ borderRadius: '5px' }}
                 />
               </div>
 
