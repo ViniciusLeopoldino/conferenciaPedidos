@@ -155,13 +155,15 @@ export default function Home() {
 
       const mapped: ItemAPI[] = apiItens.map((i: ItemRaw) => ({
         nrItem: i.nrItem ?? i.NrItem ?? 0,
-        codigo: i.codigo ?? i.Codigo ?? '',
+        // ALTERAÇÃO AQUI: Remove espaços do início e fim do código do item
+        codigo: (i.codigo ?? i.Codigo ?? '').trim(),
         valor: Number(i.valor ?? i.Valor ?? 0),
         unidade: i.unidade ?? i.Unidade ?? '',
         quantidade: Number(i.quantidade ?? i.Quantidade ?? 0),
         lotes: Array.isArray(i.lotes ?? i.Lotes)
           ? (i.lotes ?? i.Lotes)!.map((l: LoteRaw) => ({
-              Codigo: String(l.codigo ?? l.Codigo ?? ''),
+              // ALTERAÇÃO AQUI: Remove espaços do início e fim do código do lote
+              Codigo: String(l.codigo ?? l.Codigo ?? '').trim(),
               Fabricacao: l.fabricacao ?? l.Fabricacao ?? '',
               Vencimento: l.vencimento ?? l.Vencimento ?? '',
               Quantidade: Number(l.quantidade ?? l.Quantidade ?? 0),
@@ -196,19 +198,25 @@ export default function Home() {
   };
 
   const processarLote = (entrada: string) => {
+    // A sua lógica aqui já estava correta usando .trim() na entrada do usuário.
+    // A correção na busca de pedido garante que os dados no 'estado' também estão limpos.
     const valorBipado = entrada.trim();
     if (!valorBipado) return;
+
     const loteDiretoPendente = Object.values(estado).find(
       (reg) => reg.lote === valorBipado && reg.conferida < reg.esperada
     );
+
     if (loteDiretoPendente) {
       setLoteParaConferencia(valorBipado);
       setLoteBipado(valorBipado);
       return;
     }
+
     const registrosDoItem = Object.values(estado).filter(
       (reg) => reg.item === valorBipado && reg.conferida < reg.esperada
     );
+
     if (registrosDoItem.length > 0) {
       const lotesPendentes = [...new Set(registrosDoItem.map((reg) => reg.lote))];
       if (lotesPendentes.length === 1) {
@@ -227,6 +235,7 @@ export default function Home() {
         return;
       }
     }
+
     alert('Item ou Lote inválido, não encontrado no pedido ou já totalmente conferido.');
     tocarErro();
     setLoteBipado('');
@@ -240,17 +249,21 @@ export default function Home() {
         setQuantidadeBipada('');
         return;
     }
+    
     const chavesPendentes = Object.keys(estado).filter(
         key => estado[key].lote === loteParaConferencia && estado[key].conferida < estado[key].esperada
     );
+    
     if (chavesPendentes.length < quantidade) {
         alert(`Quantidade a conferir (${quantidade}) é maior que a pendente (${chavesPendentes.length}).`);
         tocarErro();
         setQuantidadeBipada('');
         return;
     }
+
     const chavesParaAtualizar = chavesPendentes.slice(0, quantidade);
     await atualizarConferencia(chavesParaAtualizar);
+    
     const pendentesAposUpdate = chavesPendentes.length - quantidade;
     if (pendentesAposUpdate > 0) {
         setQuantidadeBipada('');
@@ -277,6 +290,7 @@ export default function Home() {
         });
         return novoEstado;
       });
+
       const regBase = estado[chaves[0]];
       await supabase.from('conferencias').insert({
           documento,
@@ -308,15 +322,17 @@ export default function Home() {
       tocarErro();
       return;
     }
+
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const img = new window.Image();
     img.src = '/logo.png';
     img.onload = () => {
       const nomeCliente = CLIENTES.find(c => c.id === clienteSelecionado)?.nome || 'Cliente não encontrado';
-      doc.addImage(img, 'PNG', 85, 10, 40, 15);
+      doc.addImage(img, 'PNG', 85, 10, 50, 15);
       doc.setFontSize(12);
       doc.text(`Conferência Documento: ${numeroNFParaPDF}`, 16, 30);
       doc.text(`Cliente: ${nomeCliente}`, 16, 35);
+      
       const agrupado: Record<string, { item: string; lote: string; esperada: number; conferida: number }> = {};
       Object.entries(estado).forEach(([, reg]) => {
         const id = `${reg.item}-${reg.lote}`;
@@ -324,21 +340,24 @@ export default function Home() {
         agrupado[id].esperada += reg.esperada;
         agrupado[id].conferida += reg.conferida;
       });
+      
       const body: string[][] = Object.values(agrupado).map(reg => [
         reg.item,
         reg.lote,
         reg.esperada.toString(),
       ]);
+      
       autoTable(doc, {
         head: [['Código', 'Lote', 'Quantidade']],
         body,
         startY: 40,
-        headStyles: { fillColor: [52, 152, 219], textColor: 255, fontStyle: 'bold' },
+        headStyles: { fillColor: [0, 128, 128], textColor: 255, fontStyle: 'bold' },
         bodyStyles: { fillColor: [250, 250, 250], textColor: [50, 50, 50] },
         alternateRowStyles: { fillColor: [240, 240, 240] },
         styles: { fontSize: 10, halign: 'center' },
         tableWidth: 'auto',
       });
+      
       doc.save(`conferencia_${numeroNFParaPDF}.pdf`);
       alert('Conferência realizada com sucesso!');
       resetarAplicacao();
@@ -385,14 +404,13 @@ export default function Home() {
       <audio id="erro-audio" src="/erro.mp3" preload="auto"></audio>
 
       <div style={{ textAlign: 'center' }}>
-        <Image src="/logo.png" alt="Logo da Empresa" width={150} height={50} style={{ marginBottom: '1.5rem' }} />
+        <Image src="/logo.png" alt="Logo da Empresa" width={190} height={60}/>
       </div>
 
       <h1>Conferência de Pedidos - {numeroNFParaPDF}</h1>
       
-      {/* --- ALTERAÇÃO NO LAYOUT --- */}
       <div className="form">
-        <div className="input-group" style={{ marginBottom: '1rem' }}>
+        <div className="input-group">
           <label htmlFor="cliente-select">Selecione o Cliente</label>
           <select
               id="cliente-select"
