@@ -5,6 +5,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { supabase } from '../lib/supabaseClient';
 import Image from 'next/image';
+import Script from 'next/script'; // 1. IMPORTAR O SCRIPT
 
 // --- Tipagens (sem alterações) ---
 type LoteAPI = {
@@ -81,6 +82,17 @@ export default function Home() {
       const timer = setTimeout(() => {
         quantidadeInputRef.current?.focus();
       }, 0);
+
+      const rowId = `row-${loteParaConferencia}`;
+      const rowElement = document.getElementById(rowId);
+      
+      if (rowElement) {
+        rowElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }
+      
       return () => clearTimeout(timer);
     }
   }, [loteParaConferencia]);
@@ -155,14 +167,12 @@ export default function Home() {
 
       const mapped: ItemAPI[] = apiItens.map((i: ItemRaw) => ({
         nrItem: i.nrItem ?? i.NrItem ?? 0,
-        // ALTERAÇÃO AQUI: Remove espaços do início e fim do código do item
         codigo: (i.codigo ?? i.Codigo ?? '').trim(),
         valor: Number(i.valor ?? i.Valor ?? 0),
         unidade: i.unidade ?? i.Unidade ?? '',
         quantidade: Number(i.quantidade ?? i.Quantidade ?? 0),
         lotes: Array.isArray(i.lotes ?? i.Lotes)
           ? (i.lotes ?? i.Lotes)!.map((l: LoteRaw) => ({
-              // ALTERAÇÃO AQUI: Remove espaços do início e fim do código do lote
               Codigo: String(l.codigo ?? l.Codigo ?? '').trim(),
               Fabricacao: l.fabricacao ?? l.Fabricacao ?? '',
               Vencimento: l.vencimento ?? l.Vencimento ?? '',
@@ -198,8 +208,6 @@ export default function Home() {
   };
 
   const processarLote = (entrada: string) => {
-    // A sua lógica aqui já estava correta usando .trim() na entrada do usuário.
-    // A correção na busca de pedido garante que os dados no 'estado' também estão limpos.
     const valorBipado = entrada.trim();
     if (!valorBipado) return;
 
@@ -399,78 +407,100 @@ export default function Home() {
     (reg) => reg.conferida >= reg.esperada
   );
 
+  const totalEsperado = Object.values(estado).length;
+  const totalConferido = Object.values(estado).filter(reg => reg.conferida >= reg.esperada).length;
+
   return (
-    <main className="container">
+    <main className="layout-container">
       <audio id="erro-audio" src="/erro.mp3" preload="auto"></audio>
 
-      <div style={{ textAlign: 'center' }}>
-        <Image src="/logo.png" alt="Logo da Empresa" width={190} height={60}/>
-      </div>
-
-      <h1>Conferência de Pedidos - {numeroNFParaPDF}</h1>
-      
-      <div className="form">
-        <div className="input-group">
-          <label htmlFor="cliente-select">Selecione o Cliente</label>
-          <select
-              id="cliente-select"
-              value={clienteSelecionado}
-              onChange={e => setClienteSelecionado(e.target.value)}
+      <div className="layout-header">
+        <div className="header-content-wrapper">
+          <div className="logo-container">
+            <Image src="/logo.png" alt="Logo da Empresa" width={130} height={41} />
+          </div>
+          <h1>{numeroNFParaPDF ? `NF: ${numeroNFParaPDF}` : 'Conferência de Pedidos'}</h1>
+          
+          <div className="input-group">
+            <label htmlFor="cliente-select">Cliente</label>
+            <select
+                id="cliente-select"
+                value={clienteSelecionado}
+                onChange={e => setClienteSelecionado(e.target.value)}
+                disabled={items.length > 0}
+                style={{ borderRadius: '5px' }}
+            >
+                {CLIENTES.map(cliente => (
+                    <option key={cliente.id} value={cliente.id}>
+                        {cliente.nome}
+                    </option>
+                ))}
+            </select>
+          </div>
+        
+          <div className="input-group" >
+            <label htmlFor="documento-input">Documento</label>
+            <input
+              id="documento-input"
+              ref={documentoInputRef}
+              value={documento}
+              onChange={e => setDocumento(e.target.value)}
+              placeholder="Nº ou Chave da NF"
+              onKeyDown={e => e.key === 'Enter' && buscarPedido()}
               disabled={items.length > 0}
-          >
-              {CLIENTES.map(cliente => (
-                  <option key={cliente.id} value={cliente.id}>
-                      {cliente.nome}
-                  </option>
-              ))}
-          </select>
-        </div>
-      
-        <div className="input-group" style={{ display: 'flex', width: '100%', alignItems: 'center' }}>
-          <input
-            ref={documentoInputRef}
-            value={documento}
-            onChange={e => setDocumento(e.target.value)}
-            placeholder="Número ou Chave da NF"
-            onKeyDown={e => e.key === 'Enter' && buscarPedido()}
-            disabled={items.length > 0}
-          />
-        </div>
-        <button onClick={buscarPedido} disabled={items.length > 0}>Buscar</button>
-      </div>
+              style={{ borderRadius: '5px' }}
+            />
+          </div>
+          <button onClick={buscarPedido} disabled={items.length > 0} style={{ borderRadius: '5px', marginTop: '0rem' }}>Buscar</button>
 
-      {items.length > 0 && (
-        <>
-          <div className="form-conferencia">
-            <div className="input-group">
-              <label htmlFor="lote-input">Item / Lote</label>
-              <input
-                  id='lote-input'
-                  ref={loteInputRef}
-                  placeholder="Bipe o Item ou Lote"
-                  value={loteBipado}
-                  onChange={e => setLoteBipado(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && processarLote(loteBipado)}
-                  disabled={!!loteParaConferencia || todosConferidos}
-              />
-            </div>
-
-            {loteParaConferencia && (
+          {items.length > 0 && (
+            <>
               <div className="input-group">
-                <label htmlFor="quantidade-input">Quantidade</label>
+                <label htmlFor="lote-input">Item / Lote</label>
                 <input
-                    id='quantidade-input'
-                    ref={quantidadeInputRef}
-                    placeholder="Bipe a Qtde"
-                    type="number"
-                    value={quantidadeBipada}
-                    onChange={e => setQuantidadeBipada(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && processarConferencia()}
+                    id='lote-input'
+                    ref={loteInputRef}
+                    placeholder="Bipe o Item ou Lote"
+                    value={loteBipado}
+                    onChange={e => setLoteBipado(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && processarLote(loteBipado)}
+                    disabled={!!loteParaConferencia || todosConferidos}
                 />
               </div>
-            )}
-          </div>
 
+              {loteParaConferencia && (
+                <div className="input-group">
+                  <label htmlFor="quantidade-input">Qtde</label>
+                  <input
+                      id='quantidade-input'
+                      ref={quantidadeInputRef}
+                      placeholder="Qtde"
+                      type="number"
+                      value={quantidadeBipada}
+                      onChange={e => setQuantidadeBipada(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && processarConferencia()}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="spacer"></div>
+
+          {items.length > 0 && (
+            <div className="conference-counter">
+              <span className="counter-label">Status:</span>
+              <span className="counter-numbers">{totalConferido} / {totalEsperado}</span>
+            </div>
+          )}
+
+          {/* 2. ADICIONAR O BOTÃO DE TEMA */}
+          <button id="theme-toggle" aria-label="Alternar tema"></button>
+        </div>
+      </div>
+
+      <div className="layout-content">
+        {items.length > 0 ? (
           <table className="styled-table">
             <thead>
               <tr>
@@ -481,37 +511,51 @@ export default function Home() {
               </tr>
             </thead>
             <tbody>
-              {agrupado.map((reg, idx) => (
-                <tr
-                  key={idx}
-                  className={
-                    reg.bipado && reg.conferida < reg.esperada
-                      ? 'pendente'
-                      : reg.conferida >= reg.esperada
-                      ? 'ok'
-                      : ''
-                  }
-                >
-                  <td>{reg.item}</td>
-                  <td>{reg.lote}</td>
-                  <td>{reg.esperada}</td>
-                  <td>{reg.conferida} / {reg.esperada}</td>
-                </tr>
-              ))}
+              {agrupado.map((reg) => {
+                const classNames = [];
+                if (loteParaConferencia === reg.lote) {
+                  classNames.push('focused');
+                }
+                
+                if (reg.conferida >= reg.esperada) {
+                  classNames.push('ok');
+                } else if (reg.bipado && reg.conferida < reg.esperada) {
+                  classNames.push('pendente');
+                }
+
+                return (
+                  <tr
+                    id={`row-${reg.lote}`}
+                    key={`${reg.item}-${reg.lote}`}
+                    className={classNames.join(' ')}
+                  >
+                    <td>{reg.item}</td>
+                    <td>{reg.lote}</td>
+                    <td>{reg.esperada}</td>
+                    <td>{reg.conferida} / {reg.esperada}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+        ) : (
+          <div style={{textAlign: 'center', color: '#888', marginTop: '4rem'}}>
+            <p>Aguardando a busca de um documento para iniciar a conferência.</p>
+          </div>
+        )}
+      </div>
 
+      {items.length > 0 && (
+        <div className="layout-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
           {!todosConferidos && (
-            <p style={{ color: 'red', marginTop: '1rem' }}>Ainda há itens pendentes de conferência.</p>
+            <p style={{ color: 'red', margin: '0' }}>Ainda há itens pendentes de conferência.</p>
           )}
-
           {todosConferidos && (
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.6rem' }}>
-              <button onClick={finalizarConferencia}>Finalizar e Gerar PDF</button>
-            </div>
+            <button onClick={finalizarConferencia} style={{ borderRadius: '5px', margin: '0rem' }}>Finalizar Conferência</button>
           )}
-        </>
+        </div>
       )}
+      <Script src="/scripts/theme-switcher.js" strategy="lazyOnload" />
     </main>
   );
 }

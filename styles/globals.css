@@ -1,13 +1,60 @@
 :root {
-  --bg: #f5f7fa;
-  /* --text: #333; */
-  /* --primary: #000000; */
-  --success: #2ecc71;
-  --warning: #f1c40f;
-  --border-radius: 8px;
-  --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  /* TEMA CLARO (PADRÃO) */
+  --cor-fundo-pagina: #f5f7fa;
+  --cor-fundo-principal: #ffffff;
+  --cor-fundo-secundario: #f8f8f8;
+  --cor-fundo-hover: #f1f1f1;
+  --cor-texto-primario: #111111;
+  --cor-texto-secundario: #555555;
+  --cor-borda: #dddddd;
+  --cor-sombra: rgba(0, 0, 0, 0.1);
+  --cor-primaria-botao: #008080;
+  --cor-primaria-botao-hover: #6fdada;
+  --cor-fundo-ok: #e6ffe6;
+  --cor-fundo-pendente: #fff9e6;
+  --cor-fundo-foco: #cfe2ff;
+  --cor-borda-foco: #0d6efd;
 }
+
+html.dark-mode {
+  /* TEMA ESCURO */
+  --cor-fundo-pagina: #121212;
+  --cor-fundo-principal: #1e1e1e;
+  --cor-fundo-secundario: #2a2a2a;
+  --cor-fundo-hover: #333333;
+  --cor-texto-primario: #e0e0e0;
+  --cor-texto-secundario: #aaaaaa;
+  --cor-borda: #444444;
+  --cor-sombra: rgba(0, 0, 0, 0.4);
+  --cor-primaria-botao: #20c997;
+  --cor-primaria-botao-hover: #1baa80;
+  --cor-fundo-ok: #285b28;
+  --cor-fundo-pendente: #5d4f1a;
+  --cor-fundo-foco: #1c3d70;
+  --cor-borda-foco: #589cfd;
+}
+
+/* Detecção automática para a primeira visita */
+@media (prefers-color-scheme: dark) {
+  html:not(.light-mode):not(.dark-mode) {
+    /* TEMA ESCURO */
+    --cor-fundo-pagina: #121212;
+    --cor-fundo-principal: #1e1e1e;
+    --cor-fundo-secundario: #2a2a2a;
+    --cor-fundo-hover: #333333;
+    --cor-texto-primario: #e0e0e0;
+    --cor-texto-secundario: #aaaaaa;
+    --cor-borda: #444444;
+    --cor-sombra: rgba(0, 0, 0, 0.4);
+    --cor-primaria-botao: #20c997;
+    --cor-primaria-botao-hover: #1baa80;
+    --cor-fundo-ok: #285b28;
+    --cor-fundo-pendente: #5d4f1a;
+    --cor-fundo-foco: #1c3d70;
+    --cor-borda-foco: #589cfd;
+  }
+}
+
 
 * {
   margin: 0;
@@ -17,140 +64,208 @@
 
 html,
 body {
-  background-color: var(--bg);
-  color: var(--text);
-  font-family: var(--font-main);
-  font-size: 16px;
-  line-height: 1.6;
-  height: 100%;
+  background-color: var(--cor-fundo-pagina);
+  color: var(--cor-texto-primario);
+  font-family: var(--font-main , Arial, sans-serif);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.layout-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+.layout-header {
+  flex-shrink: 0;
+  padding: 0.5rem 1.5rem;
+  background: var(--cor-fundo-principal);
+  box-shadow: 0 4px 12px var(--cor-sombra);
+  border-bottom: 1px solid var(--cor-borda);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+}
+
+.layout-content {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 1rem 1.5rem;
+  background: var(--cor-fundo-principal);
+}
+
+.layout-footer {
+  flex-shrink: 0;
+  padding: 0.75rem;
+  text-align: center;
+  background: var(--cor-fundo-secundario);
+  border-top: 1px solid var(--cor-borda);
+}
+
+.header-content-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   width: 100%;
 }
 
-main.container {
-  max-width: 900px;
-  margin: 2rem auto;
-  padding: 2rem;
-  background: #fff;
-  border-radius: var(--border-radius);
-  box-shadow: var(--shadow);
+.header-content-wrapper .logo-container {
+  flex-shrink: 0;
+  padding-right: 0.75rem;
+  border-right: 1px solid var(--cor-borda);
 }
-
-.pendente {
-  color: red;
-  /* font-weight: bold; */
-}
-.ok {
-  color: green;
-  /* font-weight: bold; */
-}
-
 
 h1 {
-  text-align: center;
-  font-size: 2rem;
-  margin-bottom: 2rem;
-  color: var(--primary);
+  font-size: 1.2rem;
+  white-space: nowrap;
+  margin: 0;
+  color: var(--cor-texto-primario);
+  flex-shrink: 0;
 }
 
-.form {
+.input-group label {
+  margin-bottom: 0.2rem;
+  font-size: 0.75rem;
+  color: var(--cor-texto-secundario);
+  font-weight: bold;
+}
+
+#cliente-select,
+#documento-input,
+#lote-input,
+#quantidade-input {
+  width: 180px;
+  background-color: var(--cor-fundo-principal);
+  color: var(--cor-texto-primario);
+  border: 1px solid var(--cor-borda);
+}
+
+#quantidade-input { width: 100px; }
+.spacer { flex-grow: 1; }
+
+.conference-counter {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 0.5rem;
-  margin-bottom: 1.5rem;
-  justify-content: center;
+  padding: 0.5rem 1rem;
+  background-color: var(--cor-fundo-secundario);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--cor-borda);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-input {
-  padding: 0.6rem 1rem;
-  border: 1px solid #000000;
+.counter-label {
+  font-size: 0.8rem;
+  color: var(--cor-texto-secundario);
+}
+.counter-numbers {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--cor-texto-primario);
+}
+
+input, select {
+  padding: 0.5rem 0.8rem;
   border-radius: var(--border-radius);
-  flex: 1;
-  max-width: 300px;
-  font-size: 1rem;
+  font-size: 0.9rem;
+  height: 36px;
 }
 
 button {
-  /* A propriedade position aqui parece incomum, talvez revisar? */
-  /* position: calc(100% - 1.2rem);  */
-  max-width: 300px;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 0.6rem;
-  background-color: #008080;
+  padding: 0.5rem 1rem;
+  background-color: var(--cor-primaria-botao);
   color: #ffffff;
   border: none;
   border-radius: var(--border-radius);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background-color 0.2s;
+  font-size: 0.9rem;
+  height: 36px;
+  margin-top: 18px;
 }
 
 button:hover {
-  background-color: #6fdada;
+  background-color: var(--cor-primaria-botao-hover);
 }
 
 button:disabled {
-  background-color: #bbb;
+  background-color: #555;
+  color: #999;
   cursor: not-allowed;
 }
+
+/* Botão de Tema */
+#theme-toggle {
+  background: none;
+  border: 1px solid var(--cor-borda);
+  color: var(--cor-texto-primario);
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  margin: 0;
+  border-radius: 50%;
+  font-size: 1.2rem;
+}
+#theme-toggle:hover {
+  background-color: var(--cor-fundo-hover);
+}
+
 
 table.styled-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 1.5rem;
 }
 
 table.styled-table th,
 table.styled-table td {
-  padding: 12px 15px;
+  padding: 8px 10px;
   text-align: center;
-  border-bottom: 1px solid #ccc;
-}
-
-table.styled-table tr.ok {
-  background-color: #d4edda; /* Verde mais suave para conferido */
-}
-
-table.styled-table tr.pendente {
-  background-color: #fff3cd; /* Amarelo mais suave para pendente */
-}
-
-
-/* --- INÍCIO DOS ESTILOS SUGERIDOS --- */
-
-/* Estiliza o contêiner dos novos inputs (Lote e Quantidade) */
-.form-conferencia {
-  display: flex;
-  justify-content: center; /* Centraliza os grupos de input */
-  gap: 1.5rem; /* Espaço entre os inputs de Lote e Quantidade */
-  align-items: flex-end; /* Alinha os inputs pela base */
-  margin-bottom: 1.5rem; /* Espaço antes da tabela */
-  flex-wrap: wrap; /* Permite que os itens quebrem para a linha de baixo em telas pequenas */
-}
-
-/* Agrupa o label e o input para melhor organização */
-.input-group {
-  display: flex;
-  flex-direction: column;
-}
-
-/* Estilo para os labels dos novos inputs */
-.input-group label {
-  margin-bottom: 0.25rem;
+  border-bottom: 1px solid var(--cor-borda);
   font-size: 0.9rem;
-  color: #555;
-  font-weight: bold;
 }
 
-/* Ajuste específico para o input de Lote, para ter a mesma largura que o de documento */
-#lote-input {
-  max-width: 300px;
+table.styled-table thead th {
+    background-color: var(--cor-fundo-secundario);
+    font-weight: bold;
 }
 
-/* Ajuste para o input de quantidade não ser muito largo */
-.input-group input[type="number"] {
-  width: 150px; /* Um pouco mais de espaço para o placeholder */
-  flex: none; /* Remove a propriedade flexível para manter a largura fixa */
+table.styled-table tbody tr {
+  transition: background-color 0.3s ease;
 }
 
-/* --- FIM DOS ESTILOS SUGERIDOS --- */
+table.styled-table tbody tr:hover {
+    background-color: var(--cor-fundo-hover);
+}
+
+tr.ok { background-color: var(--cor-fundo-ok); }
+tr.pendente { background-color: var(--cor-fundo-pendente); }
+
+tr.focused {
+  background-color: var(--cor-fundo-foco) !important;
+  outline: 2px solid var(--cor-borda-foco);
+  outline-offset: -2px;
+}
+
+@media (max-width: 1350px) {
+  .header-content-wrapper {
+    flex-wrap: wrap;
+    row-gap: 1rem;
+  }
+  .spacer, #theme-toggle {
+    display: none;
+  }
+  .conference-counter {
+    order: -1;
+    width: 100%;
+    justify-content: center;
+  }
+  button {
+    margin-top: 0;
+  }
+}
