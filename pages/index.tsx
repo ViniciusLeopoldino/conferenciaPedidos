@@ -5,7 +5,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { supabase } from '../lib/supabaseClient';
 import Image from 'next/image';
-import Script from 'next/script'; // 1. IMPORTAR O SCRIPT
+import Script from 'next/script';
 
 // --- Tipagens (sem alterações) ---
 type LoteAPI = {
@@ -59,10 +59,9 @@ type EstadoItem = {
 };
 
 const CLIENTES = [
-    { nome: 'Endress + Hauser', id: '0157A619-B0CF-4327-82B2-E4084DBAC7DD' },
-    { nome: 'Um Grau e Meio', id: '8A697099-E130-4A57-BE47-DD8B72E3C003' },
+  { nome: 'Endress + Hauser', id: '0157A619-B0CF-4327-82B2-E4084DBAC7DD' },
+  { nome: 'Um Grau e Meio', id: '8A697099-E130-4A57-BE47-DD8B72E3C003' },
 ];
-
 
 export default function Home() {
   const [clienteSelecionado, setClienteSelecionado] = useState(CLIENTES[0].id);
@@ -70,9 +69,15 @@ export default function Home() {
   const [numeroNFParaPDF, setNumeroNFParaPDF] = useState('');
   const [items, setItems] = useState<ItemAPI[]>([]);
   const [estado, setEstado] = useState<Record<string, EstadoItem>>({});
+  
   const [loteBipado, setLoteBipado] = useState('');
   const [quantidadeBipada, setQuantidadeBipada] = useState('');
+  
+  // Controle do que está sendo conferido
   const [loteParaConferencia, setLoteParaConferencia] = useState<string | null>(null);
+  // ALTERAÇÃO: Novo estado para travar no Item específico caso o código bipado seja de um item
+  const [itemParaConferencia, setItemParaConferencia] = useState<string | null>(null);
+
   const loteInputRef = useRef<HTMLInputElement>(null);
   const quantidadeInputRef = useRef<HTMLInputElement>(null);
   const documentoInputRef = useRef<HTMLInputElement>(null);
@@ -211,37 +216,45 @@ export default function Home() {
     const valorBipado = entrada.trim();
     if (!valorBipado) return;
 
+    // ALTERAÇÃO: Verificar se o valor bipado é um ITEM pendente PRIMEIRO.
+    // Isso resolve o problema de Lotes iguais para Itens diferentes.
+    const registrosDoItem = Object.values(estado).filter(
+      (reg) => reg.item === valorBipado && reg.conferida < reg.esperada
+    );
+
+    if (registrosDoItem.length > 0) {
+      // É um item! Vamos travar a conferência neste item específico.
+      const lotesPendentes = [...new Set(registrosDoItem.map((reg) => reg.lote))];
+      
+      if (lotesPendentes.length === 1) {
+        const loteUnico = lotesPendentes[0];
+        setLoteParaConferencia(loteUnico);
+        setItemParaConferencia(valorBipado); // Travamos o item aqui
+        setLoteBipado(valorBipado);
+        return;
+      } else {
+        // Se o mesmo item tem vários lotes diferentes pendentes
+        alert(
+          `Este item possui múltiplos lotes pendentes (${lotesPendentes.join(
+            ', '
+          )}). Por favor, bipe o código específico de um dos lotes.`
+        );
+        tocarErro();
+        setLoteBipado('');
+        return;
+      }
+    }
+
+    // Se não for um item, verificamos se é um LOTE direto
     const loteDiretoPendente = Object.values(estado).find(
       (reg) => reg.lote === valorBipado && reg.conferida < reg.esperada
     );
 
     if (loteDiretoPendente) {
       setLoteParaConferencia(valorBipado);
+      setItemParaConferencia(null); // Se bipou o lote, deixamos o item "livre" (comportamento padrão)
       setLoteBipado(valorBipado);
       return;
-    }
-
-    const registrosDoItem = Object.values(estado).filter(
-      (reg) => reg.item === valorBipado && reg.conferida < reg.esperada
-    );
-
-    if (registrosDoItem.length > 0) {
-      const lotesPendentes = [...new Set(registrosDoItem.map((reg) => reg.lote))];
-      if (lotesPendentes.length === 1) {
-        const loteUnico = lotesPendentes[0];
-        setLoteParaConferencia(loteUnico);
-        setLoteBipado(valorBipado);
-        return;
-      } else {
-        alert(
-          `Este item possui múltiplos lotes pendentes (${lotesPendentes.join(
-            ', '
-          )}). Por favor, bipe o código de um dos lotes.`
-        );
-        tocarErro();
-        setLoteBipado('');
-        return;
-      }
     }
 
     alert('Item ou Lote inválido, não encontrado no pedido ou já totalmente conferido.');
@@ -258,15 +271,23 @@ export default function Home() {
         return;
     }
     
-    const chavesPendentes = Object.keys(estado).filter(
-        key => estado[key].lote === loteParaConferencia && estado[key].conferida < estado[key].esperada
-    );
+    // ALTERAÇÃO: Na hora de buscar o que atualizar, filtramos pelo Lote E pelo Item (se definido)
+    const chavesPendentes = Object.keys(estado).filter(key => {
+        const reg = estado[key];
+        const matchLote = reg.lote === loteParaConferencia;
+        // Se temos um item travado, só aceita registros desse item
+        const matchItem = itemParaConferencia ? reg.item === itemParaConferencia : true;
+        
+        return matchLote && matchItem && reg.conferida < reg.esperada;
+    });
     
     if (chavesPendentes.length < quantidade) {
-        alert(`Quantidade a conferir (${quantidade}) é maior que a pendente (${chavesPendentes.length}).`);
-        tocarErro();
-        setQuantidadeBipada('');
-        return;
+      // Mensagem personalizada para ficar mais claro
+      const msgItem = itemParaConferencia ? ` do item ${itemParaConferencia}` : '';
+      alert(`Quantidade a conferir (${quantidade}) é maior que a pendente${msgItem} para o lote ${loteParaConferencia} (${chavesPendentes.length}).`);
+      tocarErro();
+      setQuantidadeBipada('');
+      return;
     }
 
     const chavesParaAtualizar = chavesPendentes.slice(0, quantidade);
@@ -279,6 +300,7 @@ export default function Home() {
         setLoteBipado('');
         setQuantidadeBipada('');
         setLoteParaConferencia(null);
+        setItemParaConferencia(null); // Resetar item também
     }
   };
 
@@ -319,6 +341,7 @@ export default function Home() {
       setLoteBipado('');
       setQuantidadeBipada('');
       setLoteParaConferencia(null);
+      setItemParaConferencia(null); // Resetar item
   };
 
   const finalizarConferencia = () => {
@@ -471,7 +494,7 @@ export default function Home() {
 
               {loteParaConferencia && (
                 <div className="input-group">
-                  <label htmlFor="quantidade-input">Qtde</label>
+                  <label htmlFor="quantidade-input">Qtde {itemParaConferencia ? `(${itemParaConferencia})` : ''}</label>
                   <input
                       id='quantidade-input'
                       ref={quantidadeInputRef}
@@ -495,7 +518,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* 2. ADICIONAR O BOTÃO DE TEMA */}
           <button id="theme-toggle" aria-label="Alternar tema"></button>
         </div>
       </div>
@@ -514,7 +536,12 @@ export default function Home() {
             <tbody>
               {agrupado.map((reg) => {
                 const classNames = [];
-                if (loteParaConferencia === reg.lote) {
+                // ALTERAÇÃO: Destaque inteligente
+                // Se o lote bater E (se tivermos um item selecionado, ele deve bater também)
+                const estaFocado = loteParaConferencia === reg.lote && 
+                                   (!itemParaConferencia || itemParaConferencia === reg.item);
+
+                if (estaFocado) {
                   classNames.push('focused');
                 }
                 
